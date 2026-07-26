@@ -18,8 +18,27 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Torrent file opened: %s\n", torrent_filepath);
+  int fseek_result = fseek(file, 0, SEEK_END);
+
+  if (fseek_result != 0) {
+    perror("Error while moving position in file");
+    fclose(file);
+    return 1;
+  }
+
+  long position = ftell(file);
+  if (position < 0) {
+    perror("Error while reading position in file");
+    fclose(file);
+    return 1;
+  }
+  size_t file_size = (size_t)position;
+  printf("Current position in file: %ld\n", position);
+  printf("Torrent file size: %zu bytes\n", file_size);
+  rewind(file);
+
   fclose(file);
-  printf("Closed Torren file");
+  printf("Closed Torrent file\n");
 
   return 0;
 }
