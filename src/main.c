@@ -1,10 +1,16 @@
+#include "cli.h"
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
+
+  const char *torrent_filepath = NULL;
+
+  if (!cli_arguments_valid(argc, argv, &torrent_filepath)) {
     fprintf(stderr, "Usage: %s <torrent-file>\n", argv[0]);
     return 1;
   }
-  printf("Provided argument: %s\n", argv[1]);
+
+  printf("Torrent path: %s\n", torrent_filepath);
+
   return 0;
 }
