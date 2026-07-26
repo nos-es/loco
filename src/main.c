@@ -10,7 +10,16 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  printf("Torrent path: %s\n", torrent_filepath);
+  FILE *file = fopen(torrent_filepath, "rb");
+
+  if (file == NULL) {
+    perror("Torrent file could not be opened");
+    return 1;
+  }
+
+  printf("Torrent file opened: %s\n", torrent_filepath);
+  fclose(file);
+  printf("Closed Torren file");
 
   return 0;
 }
