@@ -9,3 +9,5 @@ typedef struct ByteBuffer {
 
 bool read_byte_buffer_from_file(const char *filepath,
                                 byte_buffer_t *out_buffer);
+
+void free_buffer(byte_buffer_t *buffer);

@@ -86,7 +86,8 @@ bool read_byte_buffer_from_file(const char *torrent_filepath,
   printf("fread size: %zu\n", fread_size);
 
   if (fread_size != file_size) {
-    fprintf(stderr, "Expected file size did not match actual read file size.\n");
+    fprintf(stderr,
+            "Expected file size did not match actual read file size.\n");
     free(data);
     fclose(file);
     return false;
@@ -98,4 +99,14 @@ bool read_byte_buffer_from_file(const char *torrent_filepath,
   printf("Closed Torrent file\n");
 
   return true;
+}
+
+void free_buffer(byte_buffer_t *buffer) {
+  if (buffer == NULL) {
+    // nothing to free.
+    return;
+  }
+  free(buffer->data);
+  buffer->data = NULL;
+  buffer->length = 0;
 }
