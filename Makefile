@@ -3,13 +3,13 @@ CFLAGS = -std=c17 -Wall -Wextra -Wpedantic -g
 CPPFLAGS = -Iinclude
 SANFLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer
 
-loco:	src/main.c src/cli.c include/cli.h src/file_reader.c include/file_reader.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c src/cli.c src/file_reader.c -o loco
+loco:	src/main.c src/cli.c include/cli.h src/file_reader.c include/file_reader.h src/bencode_parser.c include/bencode_parser.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c src/cli.c src/file_reader.c src/bencode_parser.c -o loco
 
-sanitize:	src/main.c src/cli.c include/cli.h src/file_reader.c include/file_reader.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SANFLAGS) src/main.c src/cli.c src/file_reader.c -o loco
+sanitize:	src/main.c src/cli.c include/cli.h src/file_reader.c include/file_reader.h src/bencode_parser.c include/bencode_parser.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SANFLAGS) src/main.c src/cli.c src/file_reader.c src/bencode_parser.c -o loco
 
 clean:	
 	rm -rf loco
 
-.PHONY:	clean
+.PHONY:	clean sanitize
