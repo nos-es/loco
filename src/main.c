@@ -1,3 +1,4 @@
+#include "bencode_parser.h"
 #include "cli.h"
 #include "file_reader.h"
 #include <stdio.h>
@@ -20,6 +21,11 @@ int main(int argc, char *argv[]) {
     free_buffer(&buffer);
     return 1;
   }
+  parser_state_t parser;
+  const unsigned char test_data[6] = "hello";
+  bool parse_result = bencode_parser_init(&parser, NULL, 5);
+
+  printf("Parse result: %d\n", parse_result);
 
   // free buffer when program ends.
   free_buffer(&buffer);
