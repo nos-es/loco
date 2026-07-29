@@ -24,3 +24,16 @@ bool bencode_parser_init(parser_state_t *parser, const unsigned char *data,
 
   return true;
 }
+
+static bool byte_exists_at_position(const parser_state_t *parser) {
+
+  if (parser == NULL) {
+    return false;
+  }
+
+  if (parser->position < parser->length) {
+    return true;
+  }
+
+  return false;
+}
