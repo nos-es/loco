@@ -37,3 +37,22 @@ static bool byte_exists_at_position(const parser_state_t *parser) {
 
   return false;
 }
+static bool peek_current_byte(const parser_state_t *parser,
+                              unsigned char *out_byte) {
+  if (parser == NULL) {
+    return false;
+  }
+  if (out_byte == NULL) {
+    return false;
+  }
+  if (!byte_exists_at_position(parser)) {
+    return false;
+  }
+
+  if (parser->data == NULL) {
+    return false;
+  }
+
+  *out_byte = parser->data[parser->position];
+  return true;
+}
