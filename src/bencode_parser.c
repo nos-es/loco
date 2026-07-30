@@ -1,4 +1,5 @@
 #include "bencode_parser.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static bool is_valid_parser(parser_state_t *parser, const unsigned char *data,
@@ -67,4 +68,41 @@ static bool consume_current_byte(parser_state_t *parser,
   parser->position++;
 
   return true;
+}
+static bencode_data_type_t determine_bencode_data_type(unsigned char byte) {
+
+  if (byte >= '0' && byte <= '9') {
+    return BYTE_STRING;
+  }
+
+  switch (byte) {
+  case 'i':
+    return INTEGER;
+  case 'l':
+    return LIST;
+  case 'd':
+    return DICTIONARY;
+  default:
+    return INVALID;
+  }
+}
+
+bool parse_bencode_buffer(parser_state_t *parser) {
+
+  unsigned char out_byte;
+
+  bool byte_obtained = peek_current_byte(parser, &out_byte);
+
+  if (!byte_obtained) {
+    printf("Byte could not be obtained");
+    return false;
+  }
+  printf("Obtained byte: %c\n", out_byte);
+  printf("Parser position: %zu\n", parser->position);
+  printf("result: %d\n", byte_obtained);
+
+  printf("Bencode Datatype: %d\n", determine_bencode_data_type(out_byte));
+
+  // returning false while testing.
+  return false;
 }
