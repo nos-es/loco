@@ -56,3 +56,15 @@ static bool peek_current_byte(const parser_state_t *parser,
   *out_byte = parser->data[parser->position];
   return true;
 }
+static bool consume_current_byte(parser_state_t *parser,
+                                 unsigned char *out_byte) {
+  bool byte_obtained = peek_current_byte(parser, out_byte);
+
+  if (!byte_obtained) {
+    return false;
+  }
+
+  parser->position++;
+
+  return true;
+}
