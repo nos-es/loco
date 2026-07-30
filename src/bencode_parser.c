@@ -1,6 +1,9 @@
 #include "bencode_parser.h"
+#include <ctype.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static bool is_valid_parser(parser_state_t *parser, const unsigned char *data,
                             size_t length) {
@@ -87,6 +90,53 @@ static bencode_data_type_t determine_bencode_data_type(unsigned char byte) {
   }
 }
 
+bool determine_byte_string_length(parser_state_t *parser,
+                                  size_t *out_string_length) {
+
+  if (out_string_length == NULL) {
+    return false;
+  }
+
+  if (parser == NULL) {
+    return false;
+  }
+
+  size_t length = 0;
+  size_t starting_position = parser->position;
+  unsigned char current_byte;
+  bool consume_result = consume_current_byte(parser, &current_byte);
+
+  if (!consume_result) {
+    parser->position = starting_position;
+    return false;
+  }
+
+  if (!isdigit(current_byte)) {
+    parser->position = starting_position;
+    return false;
+  }
+
+  while (isdigit(current_byte)) {
+    length = length * 10 + (current_byte - '0');
+
+    bool consume_result = consume_current_byte(parser, &current_byte);
+
+    if (!consume_result) {
+      parser->position = starting_position;
+      return false;
+    }
+  }
+
+  if (current_byte == ':') {
+    *out_string_length = length;
+    return true;
+  }
+
+  parser->position = starting_position;
+
+  return false;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser) {
 
   unsigned char out_byte;
@@ -97,11 +147,25 @@ bool parse_bencode_buffer(parser_state_t *parser) {
     printf("Byte could not be obtained");
     return false;
   }
+
   printf("Obtained byte: %c\n", out_byte);
   printf("Parser position: %zu\n", parser->position);
-  printf("result: %d\n", byte_obtained);
+  printf("byte obtained result: %d\n", byte_obtained);
+  bencode_data_type_t out_byte_datatype = determine_bencode_data_type(out_byte);
 
-  printf("Bencode Datatype: %d\n", determine_bencode_data_type(out_byte));
+  printf("Bencode Datatype: %d\n", out_byte_datatype);
+
+  if (out_byte_datatype == BYTE_STRING) {
+
+    size_t string_len;
+    bool string_length_result = determine_byte_string_length(parser, &string_len);
+
+    if (!string_length_result) {
+      fprintf(stderr, "Something went wrong while determining string length\n");
+      return false;
+    }
+    printf("Determined length is %zu\n", string_len);
+  }
 
   // returning false while testing.
   return false;
