@@ -22,10 +22,16 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   parser_state_t parser;
-  const unsigned char test_data[6] = "hello";
-  bool parse_result = bencode_parser_init(&parser, NULL, 5);
+  bool parse_result = bencode_parser_init(&parser, buffer.data, buffer.length);
+
+  if (!parse_result) {
+    free_buffer(&buffer);
+    return 1;
+  }
 
   printf("Parse result: %d\n", parse_result);
+
+  parse_bencode_buffer(&parser);
 
   // free buffer when program ends.
   free_buffer(&buffer);
