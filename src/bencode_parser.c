@@ -1,6 +1,7 @@
 #include "bencode_parser.h"
 #include <ctype.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,7 +91,7 @@ static bencode_data_type_t determine_bencode_data_type(unsigned char byte) {
   }
 }
 
-bool determine_byte_string_length(parser_state_t *parser,
+static bool determine_byte_string_length(parser_state_t *parser,
                                   size_t *out_string_length) {
 
   if (out_string_length == NULL) {
@@ -117,7 +118,17 @@ bool determine_byte_string_length(parser_state_t *parser,
   }
 
   while (isdigit(current_byte)) {
-    length = length * 10 + (current_byte - '0');
+
+    size_t digit = current_byte - '0';
+
+    // if true, then size_t overflow.
+    if (length > (SIZE_MAX - digit) / 10) {
+
+      parser->position = starting_position;
+      return false;
+    }
+
+    length = length * 10 + digit;
 
     bool consume_result = consume_current_byte(parser, &current_byte);
 
@@ -158,7 +169,8 @@ bool parse_bencode_buffer(parser_state_t *parser) {
   if (out_byte_datatype == BYTE_STRING) {
 
     size_t string_len;
-    bool string_length_result = determine_byte_string_length(parser, &string_len);
+    bool string_length_result =
+        determine_byte_string_length(parser, &string_len);
 
     if (!string_length_result) {
       fprintf(stderr, "Something went wrong while determining string length\n");
