@@ -92,7 +92,7 @@ static bencode_data_type_t determine_bencode_data_type(unsigned char byte) {
 }
 
 static bool determine_byte_string_length(parser_state_t *parser,
-                                  size_t *out_string_length) {
+                                         size_t *out_string_length) {
 
   if (out_string_length == NULL) {
     return false;
@@ -146,6 +146,22 @@ static bool determine_byte_string_length(parser_state_t *parser,
   parser->position = starting_position;
 
   return false;
+}
+
+static bool get_available_byte_count(const parser_state_t *parser,
+                                     size_t *out_available_bytes) {
+
+  if (parser == NULL || out_available_bytes == NULL) {
+    return false;
+  }
+
+  if (parser->position > parser->length) {
+    return false;
+  }
+
+  *out_available_bytes = parser->length - parser->position;
+
+  return true;
 }
 
 bool parse_bencode_buffer(parser_state_t *parser) {
