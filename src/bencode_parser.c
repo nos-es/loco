@@ -164,6 +164,22 @@ static bool get_available_byte_count(const parser_state_t *parser,
   return true;
 }
 
+static bool bytes_exist_from_current_parser_position(const parser_state_t *parser,
+                                         size_t needed_byte_length) {
+  if (parser == NULL) {
+    return false;
+  }
+
+  size_t available_bytes;
+
+  bool byte_count_result = get_available_byte_count(parser, &available_bytes);
+  if (!byte_count_result) {
+    return false;
+  }
+
+  return needed_byte_length <= available_bytes;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser) {
 
   unsigned char out_byte;
@@ -175,16 +191,12 @@ bool parse_bencode_buffer(parser_state_t *parser) {
     return false;
   }
 
-  printf("Obtained byte: %c\n", out_byte);
-  printf("Parser position: %zu\n", parser->position);
-  printf("byte obtained result: %d\n", byte_obtained);
   bencode_data_type_t out_byte_datatype = determine_bencode_data_type(out_byte);
-
-  printf("Bencode Datatype: %d\n", out_byte_datatype);
 
   if (out_byte_datatype == BYTE_STRING) {
 
     size_t string_len;
+    // returns 4 from for example 4:spam
     bool string_length_result =
         determine_byte_string_length(parser, &string_len);
 
@@ -192,7 +204,6 @@ bool parse_bencode_buffer(parser_state_t *parser) {
       fprintf(stderr, "Something went wrong while determining string length\n");
       return false;
     }
-    printf("Determined length is %zu\n", string_len);
   }
 
   // returning false while testing.
