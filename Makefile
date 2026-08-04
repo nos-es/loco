@@ -14,6 +14,10 @@ test: tests/test_bencode_parser.c	src/bencode_parser.c include/bencode_parser.h 
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(TEST_CPPFLAGS) tests/test_bencode_parser.c src/bencode_parser.c vendor/munit/munit.c -o loco-tests
 	./loco-tests
 
+test-sanitize: tests/test_bencode_parser.c	src/bencode_parser.c include/bencode_parser.h vendor/munit/munit.c vendor/munit/munit.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(TEST_CPPFLAGS) $(SANFLAGS) tests/test_bencode_parser.c src/bencode_parser.c vendor/munit/munit.c -o loco-tests
+	./loco-tests
+
 clean:	
 	rm -rf loco loco-tests
 
