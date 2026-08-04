@@ -2,7 +2,9 @@
 #include "munit.h"
 #include <stddef.h>
 
-MunitResult parser_init(const MunitParameter params[], void *user_data) {
+MunitResult
+test_bencode_parser_init_accepts_valid_buffer(const MunitParameter params[],
+                                              void *user_data) {
   (void)params;
   (void)user_data;
 
@@ -18,7 +20,8 @@ MunitResult parser_init(const MunitParameter params[], void *user_data) {
   munit_assert_size(parser.position, ==, 0);
   return MUNIT_OK;
 }
-MunitResult reject_null_data(const MunitParameter params[], void *user_data) {
+MunitResult test_bencode_parser_init_rejects_null_data_with_nonzero_length(
+    const MunitParameter params[], void *user_data) {
   (void)params;
   (void)user_data;
 
@@ -29,14 +32,17 @@ MunitResult reject_null_data(const MunitParameter params[], void *user_data) {
 }
 
 static MunitTest tests[] = {
-    {"/init_parser", parser_init, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
-    {"/init_parser_reject_null_data", reject_null_data, NULL, NULL,
+    {"/init/accepts-valid-buffer",
+     test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/init/rejects-null-data-with-nonzero-length",
+     test_bencode_parser_init_rejects_null_data_with_nonzero_length, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
 
-static const MunitSuite suite = {"/bencode_parser_tests", tests, NULL, 1,
+static const MunitSuite suite = {"/bencode_parser", tests, NULL, 1,
                                  MUNIT_SUITE_OPTION_NONE};
 
 int main(int argc, char *argv[]) {
