@@ -164,7 +164,8 @@ static bool get_available_byte_count(const parser_state_t *parser,
   return true;
 }
 
-static bool bytes_exist_from_current_parser_position(const parser_state_t *parser,
+static bool
+bytes_exist_from_current_parser_position(const parser_state_t *parser,
                                          size_t needed_byte_length) {
   if (parser == NULL) {
     return false;
@@ -180,30 +181,72 @@ static bool bytes_exist_from_current_parser_position(const parser_state_t *parse
   return needed_byte_length <= available_bytes;
 }
 
+static bool read_bencode_string(parser_state_t *parser, size_t string_len,
+                                bencode_segment_t *out_segment) {
+  if (parser == NULL || out_segment == NULL) {
+    return false;
+  }
+
+  out_segment->data = &parser->data[parser->position];
+  out_segment->length = string_len;
+  parser->position += string_len;
+
+  return true;
+}
+
+static bool parse_bencode_string(parser_state_t *parser) {
+
+  size_t string_len;
+  // returns 4 from for example 4:spam
+  bool string_length_determined =
+      determine_byte_string_length(parser, &string_len);
+
+  if (!string_length_determined) {
+    fprintf(stderr, "Something went wrong while determining string length\n");
+    return false;
+  }
+
+  bool bytes_exist =
+      bytes_exist_from_current_parser_position(parser, string_len);
+  if (!bytes_exist) {
+    return false;
+  }
+  bencode_segment_t segment = {.data = NULL, .length = 0};
+
+  printf("Parser Position before read_bencode_string: %zu\n", parser->position);
+
+  bool bencode_string_read = read_bencode_string(parser, string_len, &segment);
+  if (!bencode_string_read) {
+    return false;
+  }
+
+  printf("Afterwards Parser Position: %zu\n", parser->position);
+  printf("Segment length: %zu\n", segment.length);
+
+  size_t written = fwrite(segment.data, 1, segment.length, stdout);
+
+  if (written != segment.length) {
+    fprintf(stderr, "Output was not complete or failed.\n");
+  }
+  return true;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser) {
 
   unsigned char out_byte;
+  size_t starting_position = parser->position;
 
   bool byte_obtained = peek_current_byte(parser, &out_byte);
 
   if (!byte_obtained) {
-    printf("Byte could not be obtained");
+    printf("Byte could not be obtained\n");
     return false;
   }
 
   bencode_data_type_t out_byte_datatype = determine_bencode_data_type(out_byte);
 
   if (out_byte_datatype == BYTE_STRING) {
-
-    size_t string_len;
-    // returns 4 from for example 4:spam
-    bool string_length_result =
-        determine_byte_string_length(parser, &string_len);
-
-    if (!string_length_result) {
-      fprintf(stderr, "Something went wrong while determining string length\n");
-      return false;
-    }
+    bool bencode_string_parsed = parse_bencode_string(parser);
   }
 
   // returning false while testing.
