@@ -8,19 +8,6 @@ typedef struct ParserState {
   size_t position;
 } parser_state_t;
 
-typedef struct BencodeSegment{
-  const unsigned char *data;
-  size_t length;
-} bencode_segment_t;
-
-typedef enum BencodeDataType {
-  INTEGER,
-  BYTE_STRING,
-  LIST,
-  DICTIONARY,
-  INVALID
-} bencode_data_type_t;
-
 bool bencode_parser_init(parser_state_t *parser, const unsigned char *data,
                          size_t length);
 

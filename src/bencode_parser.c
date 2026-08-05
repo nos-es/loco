@@ -1,4 +1,5 @@
 #include "bencode_parser.h"
+#include "bencode_types.h"
 #include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
