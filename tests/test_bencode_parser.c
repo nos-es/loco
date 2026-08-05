@@ -10,16 +10,19 @@ test_bencode_parser_init_accepts_valid_buffer(const MunitParameter params[],
 
   parser_state_t parser;
   unsigned char expected_data[7] = "4:spam";
-  size_t expected_length = 6;
+  // input_length = How many bytes should be parsed. Can also be less then
+  // actual buffer length. When the parser should only parse certain bytes.
+  size_t input_length = 6;
   bool parser_initialzed =
-      bencode_parser_init(&parser, expected_data, expected_length);
+      bencode_parser_init(&parser, expected_data, input_length);
 
   munit_assert_true(parser_initialzed);
   munit_assert_ptr_equal(parser.data, expected_data);
-  munit_assert_size(parser.length, ==, expected_length);
+  munit_assert_size(parser.length, ==, input_length);
   munit_assert_size(parser.position, ==, 0);
   return MUNIT_OK;
 }
+
 MunitResult test_bencode_parser_init_rejects_null_data_with_nonzero_length(
     const MunitParameter params[], void *user_data) {
   (void)params;
@@ -31,12 +34,61 @@ MunitResult test_bencode_parser_init_rejects_null_data_with_nonzero_length(
   return MUNIT_OK;
 }
 
+MunitResult test_parse_bencode_buffer_parses_byte_string_and_advances_position(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char expected_data[] = "4:spam";
+  size_t input_length = 6;
+  bool parser_initialzed =
+      bencode_parser_init(&parser, expected_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t expected_parser_position_after_parse = 6;
+  bool parsed = parse_bencode_buffer(&parser);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_parse_bencode_buffer_resets_parser_position_when_parse_failed(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char expected_data[] = "5:spam";
+  size_t input_length = 6;
+  bool parser_initialzed =
+      bencode_parser_init(&parser, expected_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t expected_parser_position_after_parse = 0;
+  bool parsed = parse_bencode_buffer(&parser);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/init/rejects-null-data-with-nonzero-length",
      test_bencode_parser_init_rejects_null_data_with_nonzero_length, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/byte-string/advances-position",
+     test_parse_bencode_buffer_parses_byte_string_and_advances_position, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/byte-string/restores-position-on-incomplete-input",
+     test_parse_bencode_buffer_resets_parser_position_when_parse_failed, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
