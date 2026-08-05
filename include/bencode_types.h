@@ -1,5 +1,6 @@
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 typedef struct BencodeSegment {
   const unsigned char *data;
@@ -15,7 +16,7 @@ typedef enum BencodeDataType {
 } bencode_data_type_t;
 
 typedef union BencodeValue{
-  unsigned int integer;
+  int64_t integer;
   bencode_segment_t string;
 }bencode_value_t;
 
