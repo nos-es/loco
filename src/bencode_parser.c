@@ -253,6 +253,5 @@ bool parse_bencode_buffer(parser_state_t *parser) {
     }
   }
 
-  // returning false while testing.
-  return false;
+  return true;
 }
