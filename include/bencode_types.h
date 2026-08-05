@@ -17,7 +17,7 @@ typedef enum BencodeDataType {
 
 typedef union BencodeValue{
   int64_t integer;
-  bencode_segment_t string;
+  bencode_segment_t byte_string;
 }bencode_value_t;
 
 typedef struct BencodeObject {
