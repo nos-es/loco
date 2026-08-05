@@ -1,6 +1,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
+#include "bencode_types.h"
 
 typedef struct ParserState {
   const unsigned char *data;
@@ -11,4 +12,4 @@ typedef struct ParserState {
 bool bencode_parser_init(parser_state_t *parser, const unsigned char *data,
                          size_t length);
 
-bool parse_bencode_buffer(parser_state_t *parser);
+bool parse_bencode_buffer(parser_state_t *parser, bencode_object_t *out_object);
