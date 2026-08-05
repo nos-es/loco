@@ -1,4 +1,5 @@
 #include "bencode_parser.h"
+#include "bencode_types.h"
 #include "munit.h"
 #include <stddef.h>
 
@@ -40,15 +41,17 @@ MunitResult test_parse_bencode_buffer_parses_byte_string_and_advances_position(
   (void)user_data;
 
   parser_state_t parser;
-  const unsigned char expected_data[] = "4:spam";
+  const unsigned char input_data[] = "4:spam";
   size_t input_length = 6;
   bool parser_initialzed =
-      bencode_parser_init(&parser, expected_data, input_length);
+      bencode_parser_init(&parser, input_data, input_length);
 
   munit_assert_true(parser_initialzed);
 
   size_t expected_parser_position_after_parse = 6;
-  bool parsed = parse_bencode_buffer(&parser);
+  bencode_object_t parsed_obj = {
+      .type = INVALID, .value.byte_string = {.data = NULL, .length = 0}};
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
 
   munit_assert_true(parsed);
   munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
@@ -56,7 +59,8 @@ MunitResult test_parse_bencode_buffer_parses_byte_string_and_advances_position(
   return MUNIT_OK;
 }
 
-static MunitResult test_parse_bencode_buffer_resets_parser_position_when_parse_failed(
+static MunitResult
+test_parse_bencode_buffer_resets_parser_position_when_parse_failed(
     const MunitParameter params[], void *user_data) {
   (void)params;
   (void)user_data;
@@ -70,10 +74,74 @@ static MunitResult test_parse_bencode_buffer_resets_parser_position_when_parse_f
   munit_assert_true(parser_initialzed);
 
   size_t expected_parser_position_after_parse = 0;
-  bool parsed = parse_bencode_buffer(&parser);
+
+  bencode_object_t parsed_obj = {
+      .type = INVALID, .value.byte_string = {.data = NULL, .length = 0}};
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
 
   munit_assert_false(parsed);
   munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
+
+MunitResult test_parse_bencode_buffer_returns_byte_string_object(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char expected_data[] = "4:spam";
+  size_t input_length = 6;
+  bool parser_initialzed =
+      bencode_parser_init(&parser, expected_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {
+      .type = INVALID, .value.byte_string = {.data = NULL, .length = 0}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_int(parsed_obj.type, ==, BYTE_STRING);
+  munit_assert_size(parsed_obj.value.byte_string.length, ==, 4);
+  munit_assert_ptr_equal(parsed_obj.value.byte_string.data, expected_data + 2);
+
+  const unsigned char expected_string[] = "spam";
+  munit_assert_memory_equal(4, expected_string,
+                            parsed_obj.value.byte_string.data);
+
+  return MUNIT_OK;
+}
+
+MunitResult test_parse_bencode_buffer_leaves_output_unchanged_on_failure(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char expected_data[] = "5:spam";
+  size_t input_length = 6;
+  bool parser_initialzed =
+      bencode_parser_init(&parser, expected_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+  unsigned char dummy_data[] = "dummy data";
+  size_t dummy_len = 999;
+
+  bencode_object_t parsed_obj = {
+      .type = BYTE_STRING,
+      .value.byte_string = {.data = dummy_data, .length = dummy_len}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_int(parsed_obj.type, ==, BYTE_STRING);
+  munit_assert_size(parsed_obj.value.byte_string.length, ==, dummy_len);
+  munit_assert_ptr_equal(parsed_obj.value.byte_string.data, dummy_data);
+
+  munit_assert_memory_equal(10, dummy_data, parsed_obj.value.byte_string.data);
 
   return MUNIT_OK;
 }
@@ -85,10 +153,16 @@ static MunitTest tests[] = {
      test_bencode_parser_init_rejects_null_data_with_nonzero_length, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/byte-string/advances-position",
-     test_parse_bencode_buffer_parses_byte_string_and_advances_position, NULL, NULL,
-     MUNIT_TEST_OPTION_NONE, NULL},
+     test_parse_bencode_buffer_parses_byte_string_and_advances_position, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/byte-string/restores-position-on-incomplete-input",
-     test_parse_bencode_buffer_resets_parser_position_when_parse_failed, NULL, NULL,
+     test_parse_bencode_buffer_resets_parser_position_when_parse_failed, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/object/output-unchanged-on-failure",
+     test_parse_bencode_buffer_leaves_output_unchanged_on_failure, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/object/returns-byte-string-object",
+     test_parse_bencode_buffer_returns_byte_string_object, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
