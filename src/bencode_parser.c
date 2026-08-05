@@ -221,7 +221,6 @@ static bool parse_bencode_string(parser_state_t *parser,
     return false;
   }
 
-
   bool bencode_string_read =
       read_bencode_string(parser, string_len, out_segment);
 
@@ -233,9 +232,15 @@ static bool parse_bencode_string(parser_state_t *parser,
   return true;
 }
 
-bool parse_bencode_buffer(parser_state_t *parser) {
+bool parse_bencode_buffer(parser_state_t *parser,
+                          bencode_object_t *out_object) {
+
+  if (parser == NULL || out_object == NULL) {
+    return false;
+  }
 
   unsigned char out_byte;
+  size_t parser_start_position = parser->position;
 
   bool byte_obtained = peek_current_byte(parser, &out_byte);
 
@@ -247,12 +252,19 @@ bool parse_bencode_buffer(parser_state_t *parser) {
   bencode_data_type_t out_byte_datatype = determine_bencode_data_type(out_byte);
 
   if (out_byte_datatype == BYTE_STRING) {
-    bencode_segment_t segment = {.data = NULL, .length = 0};
-    bool bencode_string_parsed = parse_bencode_string(parser, &segment);
+    bencode_object_t temp_obj = {
+        .type = BYTE_STRING, .value.byte_string = {.data = NULL, .length = 0}};
+
+    bool bencode_string_parsed =
+        parse_bencode_string(parser, &temp_obj.value.byte_string);
+
     if (!bencode_string_parsed) {
-        return false;
+      parser->position = parser_start_position;
+      return false;
     }
+    *out_object = temp_obj;
+    return true;
   }
 
-  return true;
+  return false;
 }

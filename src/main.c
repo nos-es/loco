@@ -1,4 +1,5 @@
 #include "bencode_parser.h"
+#include "bencode_types.h"
 #include "cli.h"
 #include "file_reader.h"
 #include <stdio.h>
@@ -29,9 +30,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  printf("Parse result: %d\n", parse_result);
+  bencode_object_t obj = {.type = INVALID, .value = NULL};
 
-  parse_bencode_buffer(&parser);
+  parse_bencode_buffer(&parser, &obj);
 
   // free buffer when program ends.
   free_buffer(&buffer);
