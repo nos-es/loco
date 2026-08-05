@@ -194,14 +194,21 @@ static bool read_bencode_string(parser_state_t *parser, size_t string_len,
   return true;
 }
 
-static bool parse_bencode_string(parser_state_t *parser) {
+static bool parse_bencode_string(parser_state_t *parser,
+                                 bencode_segment_t *out_segment) {
 
+  if (parser == NULL || out_segment == NULL) {
+    return false;
+  }
   size_t string_len;
+  size_t start_position = parser->position;
+
   // returns 4 from for example 4:spam
   bool string_length_determined =
       determine_byte_string_length(parser, &string_len);
 
   if (!string_length_determined) {
+    parser->position = start_position;
     fprintf(stderr, "Something went wrong while determining string length\n");
     return false;
   }
@@ -209,32 +216,25 @@ static bool parse_bencode_string(parser_state_t *parser) {
   bool bytes_exist =
       bytes_exist_from_current_parser_position(parser, string_len);
   if (!bytes_exist) {
+    parser->position = start_position;
     return false;
   }
-  bencode_segment_t segment = {.data = NULL, .length = 0};
 
-  printf("Parser Position before read_bencode_string: %zu\n", parser->position);
 
-  bool bencode_string_read = read_bencode_string(parser, string_len, &segment);
+  bool bencode_string_read =
+      read_bencode_string(parser, string_len, out_segment);
+
   if (!bencode_string_read) {
+    parser->position = start_position;
     return false;
   }
 
-  printf("Afterwards Parser Position: %zu\n", parser->position);
-  printf("Segment length: %zu\n", segment.length);
-
-  size_t written = fwrite(segment.data, 1, segment.length, stdout);
-
-  if (written != segment.length) {
-    fprintf(stderr, "Output was not complete or failed.\n");
-  }
   return true;
 }
 
 bool parse_bencode_buffer(parser_state_t *parser) {
 
   unsigned char out_byte;
-  size_t starting_position = parser->position;
 
   bool byte_obtained = peek_current_byte(parser, &out_byte);
 
@@ -246,7 +246,11 @@ bool parse_bencode_buffer(parser_state_t *parser) {
   bencode_data_type_t out_byte_datatype = determine_bencode_data_type(out_byte);
 
   if (out_byte_datatype == BYTE_STRING) {
-    bool bencode_string_parsed = parse_bencode_string(parser);
+    bencode_segment_t segment = {.data = NULL, .length = 0};
+    bool bencode_string_parsed = parse_bencode_string(parser, &segment);
+    if (!bencode_string_parsed) {
+        return false;
+    }
   }
 
   // returning false while testing.
