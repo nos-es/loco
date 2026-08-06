@@ -1,6 +1,7 @@
 #include "bencode_parser.h"
 #include "bencode_types.h"
 #include <ctype.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -232,6 +233,69 @@ static bool parse_bencode_string(parser_state_t *parser,
   return true;
 }
 
+static bool parse_bencode_integer(parser_state_t *parser,
+                                  int64_t *out_integer) {
+  if (parser == NULL || out_integer == NULL) {
+    return false;
+  }
+
+  size_t parser_start_position = parser->position;
+  unsigned char current_byte;
+  bool first_byte_consumed = consume_current_byte(parser, &current_byte);
+
+  if (first_byte_consumed == false || current_byte != 'i') {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  bool second_byte_consumed = consume_current_byte(parser, &current_byte);
+
+  if (!second_byte_consumed) {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  // handles empty integer syntax.(ie)
+  if (current_byte == 'e') {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  // todo: negative sign
+
+  int64_t integer_value = 0;
+
+  while (isdigit(current_byte)) {
+
+    int64_t digit = (int64_t)(current_byte - '0');
+
+    // TODO: check int64_t overflow.
+
+    integer_value = integer_value * 10 + digit;
+
+    bool consume_result = consume_current_byte(parser, &current_byte);
+
+    if (!consume_result) {
+      parser->position = parser_start_position;
+      return false;
+    }
+
+    // handles leading zero
+    if (integer_value == 0 && isdigit(current_byte)) {
+      parser->position = parser_start_position;
+      return false;
+    }
+  }
+
+  if (current_byte == 'e') {
+    *out_integer = integer_value;
+    return true;
+  }
+
+  parser->position = parser_start_position;
+  return false;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser,
                           bencode_object_t *out_object) {
 
@@ -259,6 +323,21 @@ bool parse_bencode_buffer(parser_state_t *parser,
         parse_bencode_string(parser, &temp_obj.value.byte_string);
 
     if (!bencode_string_parsed) {
+      parser->position = parser_start_position;
+      return false;
+    }
+    *out_object = temp_obj;
+    return true;
+  }
+
+  if (out_byte_datatype == INTEGER) {
+    bencode_object_t temp_obj = {
+        .type = INTEGER, .value.byte_string = {.data = NULL, .length = 0}};
+
+    bool bencode_integer_parsed =
+        parse_bencode_integer(parser, &temp_obj.value.integer);
+
+    if (!bencode_integer_parsed) {
       parser->position = parser_start_position;
       return false;
     }
