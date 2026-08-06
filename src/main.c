@@ -30,9 +30,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  bencode_object_t obj = {.type = INVALID, .value = NULL};
+  bencode_object_t obj = {.type = INVALID, .value.integer = 9870};
 
-  parse_bencode_buffer(&parser, &obj);
+  bool is_parsed = parse_bencode_buffer(&parser, &obj);
 
   // free buffer when program ends.
   free_buffer(&buffer);
