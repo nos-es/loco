@@ -1,7 +1,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-bool cli_arguments_valid(int argc, char *argv[], const char **out_torrent_path) {
+bool cli_arguments_valid(int argc, char *argv[],
+                         const char **out_torrent_path) {
   if (out_torrent_path == NULL) {
     return false;
   }

@@ -15,13 +15,12 @@ typedef enum BencodeDataType {
   INVALID
 } bencode_data_type_t;
 
-typedef union BencodeValue{
+typedef union BencodeValue {
   int64_t integer;
   bencode_segment_t byte_string;
-}bencode_value_t;
+} bencode_value_t;
 
 typedef struct BencodeObject {
   bencode_data_type_t type;
   bencode_value_t value;
 } bencode_object_t;
-

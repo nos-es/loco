@@ -1,7 +1,7 @@
 #pragma once
+#include "bencode_types.h"
 #include <stdbool.h>
 #include <stddef.h>
-#include "bencode_types.h"
 
 typedef struct ParserState {
   const unsigned char *data;
