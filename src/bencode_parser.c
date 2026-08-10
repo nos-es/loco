@@ -269,7 +269,11 @@ static bool parse_bencode_integer(parser_state_t *parser,
 
     int64_t digit = (int64_t)(current_byte - '0');
 
-    // TODO: check int64_t overflow.
+    // check int64_t overflow.
+    if (integer_value > (INT64_MAX - digit) / 10) {
+      parser->position = parser_start_position;
+      return false;
+    }
 
     integer_value = integer_value * 10 + digit;
 
