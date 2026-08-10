@@ -2,6 +2,7 @@
 #include "bencode_types.h"
 #include "munit.h"
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 static MunitResult
@@ -296,6 +297,8 @@ test_parse_bencode_buffer_accepts_int64_max_value(const MunitParameter params[],
 
   munit_assert_true(parsed);
   munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, INTEGER);
+  munit_assert_int64(parsed_obj.value.integer, ==, INT64_MAX);
 
   return MUNIT_OK;
 }
