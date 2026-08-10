@@ -327,6 +327,86 @@ static MunitResult test_parse_bencode_buffer_rejects_integer_overflow(
 
   return MUNIT_OK;
 }
+
+static MunitResult test_parse_bencode_buffer_parse_parses_negative_integer(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i-42e";
+  const int64_t expected_integer_value = -42;
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int64(parsed_obj.value.integer, ==, expected_integer_value);
+  munit_assert_int(parsed_obj.type, ==, INTEGER);
+
+  return MUNIT_OK;
+}
+static MunitResult
+test_parse_bencode_buffer_parse_rejects_empty_negative_integer_syntax(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i-e";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_parse_bencode_buffer_rejects_negative_zero(const MunitParameter params[],
+                                                void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i-0e";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
@@ -366,6 +446,15 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/integer/rejects_int64_overflow",
      test_parse_bencode_buffer_rejects_integer_overflow, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/parse_negative_int64",
+     test_parse_bencode_buffer_parse_parses_negative_integer, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/returns-false-empty-negative-integer",
+     test_parse_bencode_buffer_parse_rejects_empty_negative_integer_syntax,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/reject-negative-zero",
+     test_parse_bencode_buffer_rejects_negative_zero, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
