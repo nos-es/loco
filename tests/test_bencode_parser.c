@@ -2,6 +2,7 @@
 #include "bencode_types.h"
 #include "munit.h"
 #include <stddef.h>
+#include <stdio.h>
 
 static MunitResult
 test_bencode_parser_init_accepts_valid_buffer(const MunitParameter params[],
@@ -272,6 +273,33 @@ static MunitResult test_parse_bencode_buffer_rejects_integer_without_terminator(
 
   return MUNIT_OK;
 }
+
+static MunitResult
+test_parse_bencode_buffer_accepts_int64_max_value(const MunitParameter params[],
+                                                  void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i9223372036854775807e";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+  printf("expected_parser_position_after_parse: %zu\n",
+         expected_parser_position_after_parse);
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
@@ -305,6 +333,9 @@ static MunitTest tests[] = {
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/integer/rejects-missing-terminator",
      test_parse_bencode_buffer_rejects_integer_without_terminator, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/accepts_int64_max",
+     test_parse_bencode_buffer_accepts_int64_max_value, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
