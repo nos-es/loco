@@ -284,8 +284,7 @@ test_parse_bencode_buffer_accepts_int64_max_value(const MunitParameter params[],
   const unsigned char input_data[] = "i9223372036854775807e";
   size_t input_length = sizeof(input_data) - 1;
   size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
-  printf("expected_parser_position_after_parse: %zu\n",
-         expected_parser_position_after_parse);
+
   bool parser_initialzed =
       bencode_parser_init(&parser, input_data, input_length);
 
@@ -296,6 +295,31 @@ test_parse_bencode_buffer_accepts_int64_max_value(const MunitParameter params[],
   bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
 
   munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_parse_bencode_buffer_rejects_integer_overflow(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i9223372036854775808e";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
   munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
 
   return MUNIT_OK;
@@ -336,6 +360,9 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/integer/accepts_int64_max",
      test_parse_bencode_buffer_accepts_int64_max_value, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/rejects_int64_overflow",
+     test_parse_bencode_buffer_rejects_integer_overflow, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
