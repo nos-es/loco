@@ -2,6 +2,7 @@
 #include "bencode_types.h"
 #include <ctype.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -248,11 +249,22 @@ static bool parse_bencode_integer(parser_state_t *parser,
     return false;
   }
 
-  bool second_byte_consumed = consume_current_byte(parser, &current_byte);
-
-  if (!second_byte_consumed) {
+  bool next_byte_consumed = consume_current_byte(parser, &current_byte);
+  if (!next_byte_consumed) {
     parser->position = parser_start_position;
     return false;
+  }
+
+  bool negative_sign = false;
+
+  if (current_byte == '-') {
+    negative_sign = true;
+
+    bool next_byte_consumed = consume_current_byte(parser, &current_byte);
+    if (!next_byte_consumed) {
+      parser->position = parser_start_position;
+      return false;
+    }
   }
 
   // handles empty integer syntax.(ie)
@@ -261,7 +273,11 @@ static bool parse_bencode_integer(parser_state_t *parser,
     return false;
   }
 
-  // todo: negative sign
+  // handles i-0e
+  if (negative_sign && current_byte == '0') {
+    parser->position = parser_start_position;
+    return false;
+  }
 
   int64_t integer_value = 0;
 
@@ -292,6 +308,9 @@ static bool parse_bencode_integer(parser_state_t *parser,
   }
 
   if (current_byte == 'e') {
+    if (negative_sign) {
+      integer_value = integer_value * (-1);
+    }
     *out_integer = integer_value;
     return true;
   }
