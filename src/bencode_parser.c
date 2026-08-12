@@ -326,7 +326,7 @@ static bool parse_bencode_integer(parser_state_t *parser,
         integer_value *= (-1);
       }
     } else {
-      integer_value = magnitude;
+      integer_value = (int64_t)magnitude;
     }
     *out_integer = integer_value;
     return true;
