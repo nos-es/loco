@@ -279,19 +279,25 @@ static bool parse_bencode_integer(parser_state_t *parser,
     return false;
   }
 
-  int64_t integer_value = 0;
+  uint64_t magnitude = 0;
 
   while (isdigit(current_byte)) {
 
     int64_t digit = (int64_t)(current_byte - '0');
 
     // check int64_t overflow.
-    if (integer_value > (INT64_MAX - digit) / 10) {
+    if (!negative_sign && magnitude > ((uint64_t)INT64_MAX - digit) / 10) {
       parser->position = parser_start_position;
       return false;
     }
 
-    integer_value = integer_value * 10 + digit;
+    // check negative int64_t overflow
+    if (negative_sign && magnitude > (((uint64_t)INT64_MAX + 1) - digit) / 10) {
+      parser->position = parser_start_position;
+      return false;
+    }
+
+    magnitude = magnitude * 10 + digit;
 
     bool consume_result = consume_current_byte(parser, &current_byte);
 
@@ -301,15 +307,26 @@ static bool parse_bencode_integer(parser_state_t *parser,
     }
 
     // handles leading zero
-    if (integer_value == 0 && isdigit(current_byte)) {
+    if (magnitude == 0 && isdigit(current_byte)) {
       parser->position = parser_start_position;
       return false;
     }
   }
 
   if (current_byte == 'e') {
+
+    int64_t integer_value = 0;
+
     if (negative_sign) {
-      integer_value = integer_value * (-1);
+      if (magnitude == (uint64_t)INT64_MAX + 1) {
+        integer_value = INT64_MIN;
+
+      } else {
+        integer_value = (int64_t)magnitude;
+        integer_value *= (-1);
+      }
+    } else {
+      integer_value = magnitude;
     }
     *out_integer = integer_value;
     return true;
