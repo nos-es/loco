@@ -407,6 +407,61 @@ test_parse_bencode_buffer_rejects_negative_zero(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+static MunitResult
+test_parse_bencode_buffer_accept_INT64_MIN(const MunitParameter params[],
+                                           void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i-9223372036854775808e";
+  const int64_t expected_integer_value = INT64_MIN;
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int64(parsed_obj.value.integer, ==, expected_integer_value);
+  munit_assert_int(parsed_obj.type, ==, INTEGER);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_parse_bencode_buffer_rejects_below_INT64_MIN(const MunitParameter params[],
+                                                  void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "i-9223372036854775809e";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {.type = INTEGER, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
@@ -455,6 +510,12 @@ static MunitTest tests[] = {
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/integer/reject-negative-zero",
      test_parse_bencode_buffer_rejects_negative_zero, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/accepts_and_parses_INT_64_MIN",
+     test_parse_bencode_buffer_accept_INT64_MIN, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/integer/rejects_below_INT_64_MIN",
+     test_parse_bencode_buffer_rejects_below_INT64_MIN, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
