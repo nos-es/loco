@@ -383,15 +383,45 @@ static bool parse_bencode_list(parser_state_t *parser,
     parser->position = parser_start_position;
     return false;
   }
-  result_list.items = malloc(sizeof(*result_list.items));
 
-  if (result_list.items == NULL) {
-    parser->position = parser_start_position;
-    return false;
+  // handles full capacity
+  if (result_list.count == result_list.capacity) {
+    // doubling capacity could cause a size_t overflow for new_capacity.
+    if (result_list.capacity > SIZE_MAX / 2) {
+      free(result_list.items);
+      parser->position = parser_start_position;
+      return false;
+    }
+    // new_capacity calculation is safe
+
+    // resize logic
+    size_t new_capacity = 0;
+    if (result_list.capacity == 0) {
+      new_capacity = 1;
+    } else {
+      new_capacity = result_list.capacity * 2;
+    }
+
+    if (new_capacity <= SIZE_MAX / sizeof(*result_list.items)) {
+      bencode_object_t *temp_ptr = realloc(
+          &result_list.items, new_capacity * sizeof(*result_list.items));
+
+      if (temp_ptr == NULL) {
+        // free result_list?
+        parser->position = parser_start_position;
+        return false;
+      }
+      result_list.items = temp_ptr;
+      result_list.capacity = new_capacity;
+    } else {
+      parser->position = parser_start_position;
+      return false;
+    }
   }
-  result_list.items[0] = temp_obj;
-  result_list.capacity = 1;
-  result_list.count = 1;
+
+  // add element
+  result_list.items[result_list.count] = temp_obj;
+  result_list.count++;
 
   bool last_list_byte_consumed = consume_current_byte(parser, &current_byte);
 
