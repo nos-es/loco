@@ -336,6 +336,38 @@ static bool parse_bencode_integer(parser_state_t *parser,
   return false;
 }
 
+bool parse_bencode_list(parser_state_t *parser, bencode_list_t *out_list) {
+  if (parser == NULL || out_list == NULL) {
+    return false;
+  }
+  size_t parser_start_position = parser->position;
+  unsigned char current_byte;
+
+  bool first_byte_consumed = consume_current_byte(parser, &current_byte);
+
+  if (first_byte_consumed == false || current_byte != 'l') {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  bool next_byte_consumed = consume_current_byte(parser, &current_byte);
+
+  if (!next_byte_consumed) {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  bencode_list_t result_list = {.items = NULL, .count = 0, .capacity = 0};
+
+  // empty list
+  if (current_byte == 'e') {
+    *out_list = result_list;
+    return true;
+  }
+
+  return false;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser,
                           bencode_object_t *out_object) {
 
@@ -378,6 +410,21 @@ bool parse_bencode_buffer(parser_state_t *parser,
         parse_bencode_integer(parser, &temp_obj.value.integer);
 
     if (!bencode_integer_parsed) {
+      parser->position = parser_start_position;
+      return false;
+    }
+    *out_object = temp_obj;
+    return true;
+  }
+  if (out_byte_datatype == LIST) {
+
+    bencode_object_t temp_obj = {
+        .type = LIST,
+        .value.list = {.items = NULL, .count = 98, .capacity = 456}};
+
+    bool bencode_list_parsed = parse_bencode_list(parser, &temp_obj.value.list);
+
+    if (!bencode_list_parsed) {
       parser->position = parser_start_position;
       return false;
     }
