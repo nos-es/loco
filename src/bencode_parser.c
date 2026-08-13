@@ -336,7 +336,8 @@ static bool parse_bencode_integer(parser_state_t *parser,
   return false;
 }
 
-bool parse_bencode_list(parser_state_t *parser, bencode_list_t *out_list) {
+static bool parse_bencode_list(parser_state_t *parser,
+                               bencode_list_t *out_list) {
   if (parser == NULL || out_list == NULL) {
     return false;
   }
@@ -350,9 +351,9 @@ bool parse_bencode_list(parser_state_t *parser, bencode_list_t *out_list) {
     return false;
   }
 
-  bool next_byte_consumed = consume_current_byte(parser, &current_byte);
+  bool next_byte_peeked = peek_current_byte(parser, &current_byte);
 
-  if (!next_byte_consumed) {
+  if (!next_byte_peeked) {
     parser->position = parser_start_position;
     return false;
   }
@@ -361,10 +362,51 @@ bool parse_bencode_list(parser_state_t *parser, bencode_list_t *out_list) {
 
   // empty list
   if (current_byte == 'e') {
+
+    // just for moving position to next byte.
+    bool next_byte_consumed = consume_current_byte(parser, &current_byte);
+
+    if (!next_byte_consumed) {
+      parser->position = parser_start_position;
+      return false;
+    }
+
     *out_list = result_list;
     return true;
   }
 
+  bencode_object_t temp_obj = {.type = INVALID, .value.integer = 99};
+
+  bool parsed = parse_bencode_buffer(parser, &temp_obj);
+
+  if (!parsed) {
+    parser->position = parser_start_position;
+    return false;
+  }
+  result_list.items = malloc(sizeof(*result_list.items));
+
+  if (result_list.items == NULL) {
+    parser->position = parser_start_position;
+    return false;
+  }
+  result_list.items[0] = temp_obj;
+  result_list.capacity = 1;
+  result_list.count = 1;
+
+  bool last_list_byte_consumed = consume_current_byte(parser, &current_byte);
+
+  if (!last_list_byte_consumed) {
+    free(result_list.items);
+    parser->position = parser_start_position;
+    return false;
+  }
+  if (current_byte == 'e') {
+    *out_list = result_list;
+    return true;
+  }
+
+  free(result_list.items);
+  parser->position = parser_start_position;
   return false;
 }
 
