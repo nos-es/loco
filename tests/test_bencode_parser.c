@@ -521,7 +521,44 @@ static MunitResult test_parse_bencode_buffer_parses_single_integer_in_list(
   munit_assert_size(parsed_obj.value.list.capacity, ==, 1);
   munit_assert_size(parsed_obj.value.list.count, ==, 1);
   munit_assert_int(parsed_obj.value.list.items[0].type, ==, INTEGER);
-  munit_assert_int(parsed_obj.value.list.items[0].value.integer, ==, 42);
+  munit_assert_int64(parsed_obj.value.list.items[0].value.integer, ==, 42);
+  free(parsed_obj.value.list.items);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_parse_bencode_buffer_parses_multiple_integer_in_list(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "li1ei2ee";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.list = {.items = NULL, .count = 99, .capacity = 123}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, LIST);
+  munit_assert_size(parsed_obj.value.list.count, ==, 2);
+  munit_assert_ptr(parsed_obj.value.list.items, !=, NULL);
+  munit_assert_int(parsed_obj.value.list.items[0].type, ==, INTEGER);
+  munit_assert_int64(parsed_obj.value.list.items[0].value.integer, ==, 1);
+  munit_assert_int(parsed_obj.value.list.items[1].type, ==, INTEGER);
+  munit_assert_int64(parsed_obj.value.list.items[1].value.integer, ==, 2);
+  munit_assert_true(parsed_obj.value.list.capacity >=
+                    parsed_obj.value.list.count);
   free(parsed_obj.value.list.items);
 
   return MUNIT_OK;
@@ -587,6 +624,9 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/lists/single_integer_in_list",
      test_parse_bencode_buffer_parses_single_integer_in_list, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/lists/multiple_integer_in_list",
+     test_parse_bencode_buffer_parses_multiple_integer_in_list, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
