@@ -454,6 +454,39 @@ static bool parse_bencode_list(parser_state_t *parser,
   return false;
 }
 
+void free_bencode_object(bencode_object_t *bencode_object) {
+  if (bencode_object == NULL) {
+    return;
+  }
+
+  switch (bencode_object->type) {
+
+  case INTEGER: {
+    bencode_object->value.integer = 0;
+    break;
+  }
+  case BYTE_STRING: {
+    bencode_object->value.byte_string.data = NULL;
+    bencode_object->value.byte_string.length = 0;
+    break;
+  }
+  case LIST: {
+    for (size_t i = 0; i < bencode_object->value.list.count; i++) {
+      free_bencode_object(&bencode_object->value.list.items[i]);
+    }
+    free(bencode_object->value.list.items);
+    bencode_object->value.list.items = NULL;
+    bencode_object->value.list.count = 0;
+    bencode_object->value.list.capacity = 0;
+    break;
+  }
+  case DICTIONARY:
+  case INVALID:
+    break;
+  }
+  bencode_object->type = INVALID;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser,
                           bencode_object_t *out_object) {
 

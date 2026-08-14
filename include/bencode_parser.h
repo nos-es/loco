@@ -13,3 +13,4 @@ bool bencode_parser_init(parser_state_t *parser, const unsigned char *data,
                          size_t length);
 
 bool parse_bencode_buffer(parser_state_t *parser, bencode_object_t *out_object);
+void free_bencode_object(bencode_object_t *bencode_object);
