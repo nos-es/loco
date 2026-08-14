@@ -375,54 +375,68 @@ static bool parse_bencode_list(parser_state_t *parser,
     return true;
   }
 
-  bencode_object_t temp_obj = {.type = INVALID, .value.integer = 99};
+  // -start loop
+  while (current_byte != 'e') {
 
-  bool parsed = parse_bencode_buffer(parser, &temp_obj);
+    bencode_object_t temp_obj = {.type = INVALID, .value.integer = 99};
 
-  if (!parsed) {
-    parser->position = parser_start_position;
-    return false;
-  }
+    bool parsed = parse_bencode_buffer(parser, &temp_obj);
 
-  // handles full capacity
-  if (result_list.count == result_list.capacity) {
-    // doubling capacity could cause a size_t overflow for new_capacity.
-    if (result_list.capacity > SIZE_MAX / 2) {
+    if (!parsed) {
       free(result_list.items);
       parser->position = parser_start_position;
       return false;
     }
-    // new_capacity calculation is safe
 
-    // resize logic
-    size_t new_capacity = 0;
-    if (result_list.capacity == 0) {
-      new_capacity = 1;
-    } else {
-      new_capacity = result_list.capacity * 2;
-    }
-
-    if (new_capacity <= SIZE_MAX / sizeof(*result_list.items)) {
-      bencode_object_t *temp_ptr = realloc(
-          &result_list.items, new_capacity * sizeof(*result_list.items));
-
-      if (temp_ptr == NULL) {
-        // free result_list?
+    // handles full capacity
+    if (result_list.count == result_list.capacity) {
+      // doubling capacity could cause a size_t overflow for new_capacity.
+      if (result_list.capacity > SIZE_MAX / 2) {
+        free(result_list.items);
         parser->position = parser_start_position;
         return false;
       }
-      result_list.items = temp_ptr;
-      result_list.capacity = new_capacity;
-    } else {
+      // new_capacity calculation is safe
+
+      // resize logic
+      size_t new_capacity = 0;
+      if (result_list.capacity == 0) {
+        new_capacity = 1;
+      } else {
+        new_capacity = result_list.capacity * 2;
+      }
+
+      if (new_capacity <= SIZE_MAX / sizeof(*result_list.items)) {
+        bencode_object_t *temp_ptr = realloc(
+            result_list.items, new_capacity * sizeof(*result_list.items));
+
+        if (temp_ptr == NULL) {
+          free(result_list.items);
+          parser->position = parser_start_position;
+          return false;
+        }
+        result_list.items = temp_ptr;
+        result_list.capacity = new_capacity;
+      } else {
+        free(result_list.items);
+        parser->position = parser_start_position;
+        return false;
+      }
+    }
+
+    // add element
+    result_list.items[result_list.count] = temp_obj;
+    result_list.count++;
+
+    bool current_list_byte_peeked = peek_current_byte(parser, &current_byte);
+
+    if (!current_list_byte_peeked) {
+      free(result_list.items);
       parser->position = parser_start_position;
       return false;
     }
   }
-
-  // add element
-  result_list.items[result_list.count] = temp_obj;
-  result_list.count++;
-
+  // loop end
   bool last_list_byte_consumed = consume_current_byte(parser, &current_byte);
 
   if (!last_list_byte_consumed) {
