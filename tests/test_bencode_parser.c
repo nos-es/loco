@@ -656,6 +656,56 @@ test_parse_bencode_buffer_parses_inner_lists(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+static MunitResult
+test_free_bencode_buffer_parses_frees_and_resets_inner_elements_correctly(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "lli1eee";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.list = {.items = NULL, .count = 99, .capacity = 123}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, LIST);
+  munit_assert_size(parsed_obj.value.list.count, ==, 1);
+  munit_assert_ptr(parsed_obj.value.list.items, !=, NULL);
+  munit_assert_true(parsed_obj.value.list.capacity >=
+                    parsed_obj.value.list.count);
+
+  munit_assert_ptr(parsed_obj.value.list.items[0].value.list.items, !=, NULL);
+  munit_assert_int(parsed_obj.value.list.items[0].type, ==, LIST);
+  munit_assert_size(parsed_obj.value.list.items[0].value.list.count, ==, 1);
+  munit_assert_true(parsed_obj.value.list.items[0].value.list.capacity >=
+                    parsed_obj.value.list.items[0].value.list.count);
+
+  munit_assert_int(parsed_obj.value.list.items[0].value.list.items[0].type, ==,
+                   INTEGER);
+  munit_assert_int64(
+      parsed_obj.value.list.items[0].value.list.items[0].value.integer, ==, 1);
+
+  free_bencode_object(&parsed_obj);
+
+  munit_assert_int(parsed_obj.type, ==, INVALID);
+  munit_assert_size(parsed_obj.value.list.count, ==, 0);
+  munit_assert_size(parsed_obj.value.list.capacity, ==, 0);
+  munit_assert_ptr(parsed_obj.value.list.items, ==, NULL);
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
@@ -726,6 +776,9 @@ static MunitTest tests[] = {
     {"/parse/lists/parse-inner-lists-with-elements-inside",
      test_parse_bencode_buffer_parses_inner_lists, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/free/frees-inner-elements-correctly",
+     test_free_bencode_buffer_parses_frees_and_resets_inner_elements_correctly,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
