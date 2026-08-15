@@ -335,6 +335,11 @@ static bool parse_bencode_integer(parser_state_t *parser,
   parser->position = parser_start_position;
   return false;
 }
+static void free_elements_in_list(bencode_list_t *list) {
+  for (size_t i = 0; i < list->count; i++) {
+    free_bencode_object(&list->items[i]);
+  }
+}
 
 static bool parse_bencode_list(parser_state_t *parser,
                                bencode_list_t *out_list) {
@@ -383,6 +388,7 @@ static bool parse_bencode_list(parser_state_t *parser,
     bool parsed = parse_bencode_buffer(parser, &temp_obj);
 
     if (!parsed) {
+      free_elements_in_list(&result_list);
       free(result_list.items);
       parser->position = parser_start_position;
       return false;
@@ -392,6 +398,8 @@ static bool parse_bencode_list(parser_state_t *parser,
     if (result_list.count == result_list.capacity) {
       // doubling capacity could cause a size_t overflow for new_capacity.
       if (result_list.capacity > SIZE_MAX / 2) {
+        free_bencode_object(&temp_obj);
+        free_elements_in_list(&result_list);
         free(result_list.items);
         parser->position = parser_start_position;
         return false;
@@ -411,6 +419,8 @@ static bool parse_bencode_list(parser_state_t *parser,
             result_list.items, new_capacity * sizeof(*result_list.items));
 
         if (temp_ptr == NULL) {
+          free_bencode_object(&temp_obj);
+          free_elements_in_list(&result_list);
           free(result_list.items);
           parser->position = parser_start_position;
           return false;
@@ -418,6 +428,8 @@ static bool parse_bencode_list(parser_state_t *parser,
         result_list.items = temp_ptr;
         result_list.capacity = new_capacity;
       } else {
+        free_bencode_object(&temp_obj);
+        free_elements_in_list(&result_list);
         free(result_list.items);
         parser->position = parser_start_position;
         return false;
@@ -431,6 +443,7 @@ static bool parse_bencode_list(parser_state_t *parser,
     bool current_list_byte_peeked = peek_current_byte(parser, &current_byte);
 
     if (!current_list_byte_peeked) {
+      free_elements_in_list(&result_list);
       free(result_list.items);
       parser->position = parser_start_position;
       return false;
@@ -440,6 +453,8 @@ static bool parse_bencode_list(parser_state_t *parser,
   bool last_list_byte_consumed = consume_current_byte(parser, &current_byte);
 
   if (!last_list_byte_consumed) {
+
+    free_elements_in_list(&result_list);
     free(result_list.items);
     parser->position = parser_start_position;
     return false;
@@ -449,6 +464,7 @@ static bool parse_bencode_list(parser_state_t *parser,
     return true;
   }
 
+  free_elements_in_list(&result_list);
   free(result_list.items);
   parser->position = parser_start_position;
   return false;
