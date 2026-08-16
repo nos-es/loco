@@ -809,8 +809,6 @@ static MunitResult test_bencode_buffer_parses_dictionary_with_single_element(
   munit_assert_size(parsed_obj.value.dictionary.count, ==, 1);
   munit_assert_ptr(parsed_obj.value.dictionary.entries, !=, NULL);
   munit_assert_size(parsed_obj.value.dictionary.capacity, ==, 1);
-  munit_assert_true(parsed_obj.value.dictionary.capacity >=
-                    parsed_obj.value.dictionary.count);
 
   munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
                    INTEGER);
@@ -823,6 +821,8 @@ static MunitResult test_bencode_buffer_parses_dictionary_with_single_element(
 
   munit_assert_ptr_equal(parsed_obj.value.dictionary.entries[0].key.data,
                          input_data + 3);
+
+  free_bencode_object(&parsed_obj);
 
   return MUNIT_OK;
 }
@@ -905,6 +905,9 @@ static MunitTest tests[] = {
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/dictionaries/parses-empty-dictionary",
      test_bencode_buffer_parses_empty_dictionary, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/parses-single-entry-dictionary",
+     test_bencode_buffer_parses_dictionary_with_single_element, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
