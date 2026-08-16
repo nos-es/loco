@@ -745,7 +745,7 @@ test_free_bencode_buffer_reject_partially_parsed_list_and_cleans_ups(
 
 static MunitResult
 test_bencode_buffer_parses_empty_dictionary(const MunitParameter params[],
-                                                 void *user_data) {
+                                            void *user_data) {
   (void)params;
   (void)user_data;
 
@@ -774,6 +774,55 @@ test_bencode_buffer_parses_empty_dictionary(const MunitParameter params[],
   munit_assert_size(parsed_obj.value.dictionary.count, ==, 0);
   munit_assert_ptr(parsed_obj.value.dictionary.entries, ==, NULL);
   munit_assert_size(parsed_obj.value.dictionary.capacity, ==, 0);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_bencode_buffer_parses_dictionary_with_single_element(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "d3:fooi42ee";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+  const unsigned char expected_key[] = "foo";
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, DICTIONARY);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, 1);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, !=, NULL);
+  munit_assert_size(parsed_obj.value.dictionary.capacity, ==, 1);
+  munit_assert_true(parsed_obj.value.dictionary.capacity >=
+                    parsed_obj.value.dictionary.count);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
+                   INTEGER);
+  munit_assert_int64(parsed_obj.value.dictionary.entries[0].value.value.integer,
+                     ==, 42);
+
+  munit_assert_memory_equal(3, expected_key,
+                            parsed_obj.value.dictionary.entries[0].key.data);
+  munit_assert_size(parsed_obj.value.dictionary.entries[0].key.length, ==, 3);
+
+  munit_assert_ptr_equal(parsed_obj.value.dictionary.entries[0].key.data,
+                         input_data + 3);
 
   return MUNIT_OK;
 }
