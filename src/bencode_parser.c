@@ -503,6 +503,47 @@ void free_bencode_object(bencode_object_t *bencode_object) {
   bencode_object->type = INVALID;
 }
 
+static bool parse_bencode_dict(parser_state_t *parser,
+                               bencode_dictionary_t *out_dict) {
+
+  if (parser == NULL || out_dict == NULL) {
+    return false;
+  }
+
+  unsigned char current_byte;
+  size_t parser_start_position = parser->position;
+
+  bool first_byte_consumed = consume_current_byte(parser, &current_byte);
+
+  if (!first_byte_consumed || current_byte != 'd') {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  bool next_byte_peeked = peek_current_byte(parser, &current_byte);
+
+  if (!next_byte_peeked) {
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  bencode_dictionary_t temp_dict = {.entries = NULL, .capacity = 0, .count = 0};
+
+  // handle empty dictionary
+  if (current_byte == 'e') {
+    bool consumed_to_move = consume_current_byte(parser, &current_byte);
+    if (!consumed_to_move) {
+      parser->position = parser_start_position;
+      return false;
+    }
+    *out_dict = temp_dict;
+    return true;
+  }
+
+  parser->position = parser_start_position;
+  return false;
+}
+
 bool parse_bencode_buffer(parser_state_t *parser,
                           bencode_object_t *out_object) {
 
@@ -560,6 +601,19 @@ bool parse_bencode_buffer(parser_state_t *parser,
     bool bencode_list_parsed = parse_bencode_list(parser, &temp_obj.value.list);
 
     if (!bencode_list_parsed) {
+      parser->position = parser_start_position;
+      return false;
+    }
+    *out_object = temp_obj;
+    return true;
+  }
+  if (out_byte_datatype == DICTIONARY) {
+    bencode_object_t temp_obj = {
+        .type = DICTIONARY,
+        .value.dictionary = {.entries = NULL, .count = 99, .capacity = 123}};
+    bool bencode_dict_parsed =
+        parse_bencode_dict(parser, &temp_obj.value.dictionary);
+    if (!bencode_dict_parsed) {
       parser->position = parser_start_position;
       return false;
     }
