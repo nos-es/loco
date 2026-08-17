@@ -514,6 +514,12 @@ void free_bencode_object(bencode_object_t *bencode_object) {
   bencode_object->type = INVALID;
 }
 
+static void free_entries_in_dict(bencode_dictionary_t *dict) {
+  for (size_t i = 0; i < dict->count; i++) {
+    free_bencode_object(&dict->entries[i].value);
+  }
+}
+
 static bool parse_bencode_dict(parser_state_t *parser,
                                bencode_dictionary_t *out_dict) {
 
@@ -551,72 +557,101 @@ static bool parse_bencode_dict(parser_state_t *parser,
     return true;
   }
 
-  // TODO: Loop here
+  while (current_byte != 'e') {
 
-  bencode_segment_t current_key = {.data = NULL, .length = 42};
+    bencode_segment_t current_key = {.data = NULL, .length = 42};
 
-  bool key_parsed = parse_bencode_string(parser, &current_key);
+    bool key_parsed = parse_bencode_string(parser, &current_key);
 
-  if (!key_parsed) {
-    parser->position = parser_start_position;
-    return false;
-  }
-
-  bencode_object_t current_value = {
-      .type = INVALID, .value = {.byte_string = {.data = NULL, .length = 99}}};
-
-  bool value_parsed = parse_bencode_buffer(parser, &current_value);
-
-  if (!value_parsed) {
-    parser->position = parser_start_position;
-    return false;
-  }
-
-  bencode_dictionary_entry_t *entry =
-      malloc(sizeof(bencode_dictionary_entry_t));
-
-  if (entry == NULL) {
-    free_bencode_object(&current_value);
-    parser->position = parser_start_position;
-    return false;
-  }
-  entry->key = current_key;
-  entry->value = current_value;
-
-  temp_dict.entries = entry;
-  temp_dict.capacity = 1;
-  temp_dict.count++;
-
-  // update current_byte
-  next_byte_peeked = peek_current_byte(parser, &current_byte);
-
-  if (!next_byte_peeked) {
-    free_bencode_object(&entry->value);
-    free(entry);
-    parser->position = parser_start_position;
-    return false;
-  }
-
-  // list end reached, after peek.
-  if (current_byte == 'e') {
-
-    // move position after e.
-    bool next_byte_consumed = consume_current_byte(parser, &current_byte);
-    if (!next_byte_consumed) {
-      free_bencode_object(&entry->value);
-      free(entry);
+    if (!key_parsed) {
+      free_entries_in_dict(&temp_dict);
+      free(temp_dict.entries);
       parser->position = parser_start_position;
       return false;
     }
 
-    *out_dict = temp_dict;
-    return true;
+    bencode_object_t current_value = {
+        .type = INVALID,
+        .value = {.byte_string = {.data = NULL, .length = 99}}};
+
+    bool value_parsed = parse_bencode_buffer(parser, &current_value);
+
+    if (!value_parsed) {
+      free_entries_in_dict(&temp_dict);
+      free(temp_dict.entries);
+      parser->position = parser_start_position;
+      return false;
+    }
+
+    if (temp_dict.capacity == temp_dict.count) {
+      // check if capacity runs into overflow
+      if (temp_dict.capacity > SIZE_MAX / 2) {
+        free_bencode_object(&current_value);
+        free_entries_in_dict(&temp_dict);
+        free(temp_dict.entries);
+        parser->position = parser_start_position;
+        return false;
+      }
+      // new_capacity calculation is safe
+
+      // resize logic
+      size_t new_capacity = 0;
+      if (temp_dict.capacity == 0) {
+        new_capacity = 1;
+      } else {
+        new_capacity = temp_dict.capacity * 2;
+      }
+
+      if (new_capacity <= SIZE_MAX / sizeof(*temp_dict.entries)) {
+        bencode_dictionary_entry_t *temp_ptr = realloc(
+            temp_dict.entries, new_capacity * sizeof(*temp_dict.entries));
+
+        if (temp_ptr == NULL) {
+          free_bencode_object(&current_value);
+          free_entries_in_dict(&temp_dict);
+          free(temp_dict.entries);
+          parser->position = parser_start_position;
+          return false;
+        }
+        temp_dict.entries = temp_ptr;
+        temp_dict.capacity = new_capacity;
+      } else {
+        free_bencode_object(&current_value);
+        free_entries_in_dict(&temp_dict);
+        free(temp_dict.entries);
+        parser->position = parser_start_position;
+        return false;
+      }
+    }
+
+    bencode_dictionary_entry_t entry = {.key = current_key,
+                                        .value = current_value};
+
+    temp_dict.entries[temp_dict.count] = entry;
+    temp_dict.count++;
+
+    // update current_byte
+    bool current_dict_byte_peeked = peek_current_byte(parser, &current_byte);
+
+    if (!current_dict_byte_peeked) {
+      free_entries_in_dict(&temp_dict);
+      free(temp_dict.entries);
+      parser->position = parser_start_position;
+      return false;
+    }
   }
 
-  free_bencode_object(&entry->value);
-  free(entry);
-  parser->position = parser_start_position;
-  return false;
+  // move position after e.
+  bool next_byte_consumed = consume_current_byte(parser, &current_byte);
+  if (!next_byte_consumed) {
+    free_entries_in_dict(&temp_dict);
+    free(temp_dict.entries);
+    parser->position = parser_start_position;
+    return false;
+  }
+
+  *out_dict = temp_dict;
+  return true;
 }
 
 bool parse_bencode_buffer(parser_state_t *parser,
