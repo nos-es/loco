@@ -559,7 +559,7 @@ static bool parse_bencode_dict(parser_state_t *parser,
 
   while (current_byte != 'e') {
 
-    bencode_segment_t current_key = {.data = NULL, .length = 42};
+    bencode_segment_t current_key = {.data = NULL, .length = 0};
 
     bool key_parsed = parse_bencode_string(parser, &current_key);
 
@@ -572,7 +572,7 @@ static bool parse_bencode_dict(parser_state_t *parser,
 
     bencode_object_t current_value = {
         .type = INVALID,
-        .value = {.byte_string = {.data = NULL, .length = 99}}};
+        .value = {.byte_string = {.data = NULL, .length = 0}}};
 
     bool value_parsed = parse_bencode_buffer(parser, &current_value);
 
@@ -706,7 +706,7 @@ bool parse_bencode_buffer(parser_state_t *parser,
 
     bencode_object_t temp_obj = {
         .type = LIST,
-        .value.list = {.items = NULL, .count = 98, .capacity = 456}};
+        .value.list = {.items = NULL, .count = 0, .capacity = 0}};
 
     bool bencode_list_parsed = parse_bencode_list(parser, &temp_obj.value.list);
 
@@ -720,7 +720,7 @@ bool parse_bencode_buffer(parser_state_t *parser,
   if (out_byte_datatype == DICTIONARY) {
     bencode_object_t temp_obj = {
         .type = DICTIONARY,
-        .value.dictionary = {.entries = NULL, .count = 99, .capacity = 123}};
+        .value.dictionary = {.entries = NULL, .count = 0, .capacity = 0}};
     bool bencode_dict_parsed =
         parse_bencode_dict(parser, &temp_obj.value.dictionary);
     if (!bencode_dict_parsed) {
