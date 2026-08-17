@@ -892,7 +892,191 @@ static MunitResult test_bencode_buffer_parses_dictionary_with_two_elements(
 
   return MUNIT_OK;
 }
+static MunitResult test_bencode_buffer_rejects_missing_closing_e_in_dictionary(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
 
+  parser_state_t parser;
+  const unsigned char input_data[] = "d3:bari7e3:fooi42e";
+
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, INVALID);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, dummy_count);
+  munit_assert_size(parsed_obj.value.dictionary.capacity, ==, dummy_capacity);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, ==, NULL);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+static MunitResult
+test_bencode_buffer_rejects_wrong_closing_syntax_in_dictionary(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "d3:bari7e3:fooi42ex";
+
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, INVALID);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, dummy_count);
+  munit_assert_size(parsed_obj.value.dictionary.capacity, ==, dummy_capacity);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, ==, NULL);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_bencode_buffer_parses_dictionary_with_inner_list(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "d3:bari7e3:fool4:testee";
+
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+  const unsigned char expected_first_key[] = "bar";
+  const unsigned char expected_second_key[] = "foo";
+  const unsigned char expected_first_list_element[] = "test";
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, DICTIONARY);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, 2);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, !=, NULL);
+  munit_assert_true(parsed_obj.value.dictionary.capacity >=
+                    parsed_obj.value.dictionary.count);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
+                   INTEGER);
+  munit_assert_int64(parsed_obj.value.dictionary.entries[0].value.value.integer,
+                     ==, 7);
+
+  munit_assert_memory_equal(3, expected_first_key,
+                            parsed_obj.value.dictionary.entries[0].key.data);
+
+  munit_assert_size(parsed_obj.value.dictionary.entries[0].key.length, ==, 3);
+
+  munit_assert_ptr_equal(parsed_obj.value.dictionary.entries[0].key.data,
+                         input_data + 3);
+
+  munit_assert_memory_equal(3, expected_second_key,
+                            parsed_obj.value.dictionary.entries[1].key.data);
+  munit_assert_int(parsed_obj.value.dictionary.entries[1].value.type, ==, LIST);
+  munit_assert_size(
+      parsed_obj.value.dictionary.entries[1].value.value.list.count, ==, 1);
+  munit_assert_size(
+      parsed_obj.value.dictionary.entries[1].value.value.list.capacity, ==, 1);
+
+  munit_assert_int(
+      parsed_obj.value.dictionary.entries[1].value.value.list.items[0].type, ==,
+      BYTE_STRING);
+  munit_assert_memory_equal(4, expected_first_list_element,
+                            parsed_obj.value.dictionary.entries[1]
+                                .value.value.list.items[0]
+                                .value.byte_string.data);
+
+  munit_assert_ptr_equal(parsed_obj.value.dictionary.entries[1]
+                             .value.value.list.items[0]
+                             .value.byte_string.data,
+                         input_data + 17);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
+static MunitResult rejects_partially_parsed_dictionary_with_heap_allocation(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "d3:barl4:teste3:fooi42e";
+
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, INVALID);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, dummy_count);
+  munit_assert_size(parsed_obj.value.dictionary.capacity, ==, dummy_capacity);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, ==, NULL);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
@@ -977,6 +1161,18 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/dictionaries/parses-two-entry-dictionary",
      test_bencode_buffer_parses_dictionary_with_two_elements, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/rejects-missing-closing-e-dictionary",
+     test_bencode_buffer_rejects_missing_closing_e_in_dictionary, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/rejects-wrong-closing-syntax-dictionary",
+     test_bencode_buffer_rejects_wrong_closing_syntax_in_dictionary, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/parses-dictionary-with-inner-list",
+     test_bencode_buffer_parses_dictionary_with_inner_list, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/rejects-partially-parsed-with-correct-cleanup",
+     rejects_partially_parsed_dictionary_with_heap_allocation, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
