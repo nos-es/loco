@@ -588,7 +588,7 @@ static bool parse_bencode_dict(parser_state_t *parser,
       }
 
       if (cmp_result == 0) {
-        if (previous_key.length > current_key.length) {
+        if (previous_key.length >= current_key.length) {
           free_entries_in_dict(&temp_dict);
           free(temp_dict.entries);
           parser->position = parser_start_position;
