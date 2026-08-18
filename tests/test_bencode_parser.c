@@ -1112,6 +1112,106 @@ static MunitResult test_parse_bencode_buffer_rejects_wrong_order_of_keys(
 
   return MUNIT_OK;
 }
+static MunitResult
+test_parse_bencode_buffer_rejects_duplicate_keys(const MunitParameter params[],
+                                                 void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "d3:fooi1e3:fooi2ee";
+
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = 0;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_false(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, INVALID);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, dummy_count);
+  munit_assert_size(parsed_obj.value.dictionary.capacity, ==, dummy_capacity);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, ==, NULL);
+
+  return MUNIT_OK;
+}
+static MunitResult
+test_parse_bencode_buffer_parses_sorted_keys_with_same_prefix(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  const unsigned char input_data[] = "d1:ai1e2:aai2ee";
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+  const unsigned char expected_first_key[] = "a";
+  const unsigned char expected_second_key[] = "aa";
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, DICTIONARY);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, 2);
+  munit_assert_ptr(parsed_obj.value.dictionary.entries, !=, NULL);
+  munit_assert_true(parsed_obj.value.dictionary.capacity >=
+                    parsed_obj.value.dictionary.count);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
+                   INTEGER);
+  munit_assert_int64(parsed_obj.value.dictionary.entries[0].value.value.integer,
+                     ==, 1);
+
+  munit_assert_memory_equal(1, expected_first_key,
+                            parsed_obj.value.dictionary.entries[0].key.data);
+
+  munit_assert_size(parsed_obj.value.dictionary.entries[0].key.length, ==, 1);
+
+  munit_assert_ptr_equal(parsed_obj.value.dictionary.entries[0].key.data,
+                         input_data + 3);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[1].value.type, ==,
+                   INTEGER);
+  munit_assert_int64(parsed_obj.value.dictionary.entries[1].value.value.integer,
+                     ==, 2);
+
+  munit_assert_memory_equal(2, expected_second_key,
+                            parsed_obj.value.dictionary.entries[1].key.data);
+
+  munit_assert_size(parsed_obj.value.dictionary.entries[1].key.length, ==, 2);
+
+  munit_assert_ptr_equal(parsed_obj.value.dictionary.entries[1].key.data,
+                         input_data + 9);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/init/accepts-valid-buffer",
      test_bencode_parser_init_accepts_valid_buffer, NULL, NULL,
@@ -1211,6 +1311,12 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse/dictionaries/reject-wrong-key-order",
      test_parse_bencode_buffer_rejects_wrong_order_of_keys, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/reject-duplicate-keys",
+     test_parse_bencode_buffer_rejects_duplicate_keys, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse/dictionaries/parses-sorted-keys-same-prefix",
+     test_parse_bencode_buffer_parses_sorted_keys_with_same_prefix, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
