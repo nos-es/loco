@@ -570,9 +570,35 @@ static bool parse_bencode_dict(parser_state_t *parser,
       return false;
     }
 
+    //check sorted as raw strings
+    if (temp_dict.count > 0) {
+      bencode_segment_t previous_key =
+          temp_dict.entries[temp_dict.count - 1].key;
+      size_t compare_length = (previous_key.length < current_key.length)
+                                  ? previous_key.length
+                                  : current_key.length;
+      int cmp_result =
+          memcmp(previous_key.data, current_key.data, compare_length);
+
+      if (cmp_result > 0) {
+        free_entries_in_dict(&temp_dict);
+        free(temp_dict.entries);
+        parser->position = parser_start_position;
+        return false;
+      }
+
+      if (cmp_result == 0) {
+        if (previous_key.length > current_key.length) {
+          free_entries_in_dict(&temp_dict);
+          free(temp_dict.entries);
+          parser->position = parser_start_position;
+          return false;
+        }
+      }
+    }
+
     bencode_object_t current_value = {
-        .type = INVALID,
-        .value = {.byte_string = {.data = NULL, .length = 0}}};
+        .type = INVALID, .value = {.byte_string = {.data = NULL, .length = 0}}};
 
     bool value_parsed = parse_bencode_buffer(parser, &current_value);
 
@@ -705,8 +731,7 @@ bool parse_bencode_buffer(parser_state_t *parser,
   if (out_byte_datatype == LIST) {
 
     bencode_object_t temp_obj = {
-        .type = LIST,
-        .value.list = {.items = NULL, .count = 0, .capacity = 0}};
+        .type = LIST, .value.list = {.items = NULL, .count = 0, .capacity = 0}};
 
     bool bencode_list_parsed = parse_bencode_list(parser, &temp_obj.value.list);
 
