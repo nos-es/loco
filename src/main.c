@@ -2,6 +2,7 @@
 #include "bencode_types.h"
 #include "cli.h"
 #include "file_reader.h"
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -22,6 +23,7 @@ int main(int argc, char *argv[]) {
     free_buffer(&buffer);
     return 1;
   }
+
   parser_state_t parser;
   bool parse_result = bencode_parser_init(&parser, buffer.data, buffer.length);
 
@@ -34,7 +36,21 @@ int main(int argc, char *argv[]) {
 
   bool is_parsed = parse_bencode_buffer(&parser, &obj);
 
+  if (!is_parsed) {
+    fprintf(stderr, "Failed to parse file.\n");
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  for (size_t i = 0; i < obj.value.dictionary.count; i++) {
+    printf("Key: ");
+    fwrite(obj.value.dictionary.entries[i].key.data, 1,
+           obj.value.dictionary.entries[i].key.length, stdout);
+    fputc('\n', stdout);
+  }
+
   // free buffer when program ends.
+  free_bencode_object(&obj);
   free_buffer(&buffer);
 
   return 0;
