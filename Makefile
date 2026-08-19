@@ -10,15 +10,15 @@ loco:	src/main.c src/cli.c include/cli.h src/file_reader.c include/file_reader.h
 sanitize:	src/main.c src/cli.c include/cli.h src/file_reader.c include/file_reader.h src/bencode_parser.c include/bencode_parser.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SANFLAGS) src/main.c src/cli.c src/file_reader.c src/bencode_parser.c -o loco
 
-test: tests/test_bencode_parser.c	src/bencode_parser.c include/bencode_parser.h vendor/munit/munit.c vendor/munit/munit.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(TEST_CPPFLAGS) tests/test_bencode_parser.c src/bencode_parser.c vendor/munit/munit.c -o loco-tests
+test: tests/test_main.c tests/test_bencode_parser.c	src/bencode_parser.c include/bencode_parser.h tests/test_torrent_metadata.c src/torrent_metadata.c include/torrent_metadata.h vendor/munit/munit.c vendor/munit/munit.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(TEST_CPPFLAGS) tests/test_main.c tests/test_bencode_parser.c src/bencode_parser.c tests/test_torrent_metadata.c src/torrent_metadata.c vendor/munit/munit.c -o loco-tests
 	./loco-tests
 
-test-sanitize: tests/test_bencode_parser.c	src/bencode_parser.c include/bencode_parser.h vendor/munit/munit.c vendor/munit/munit.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(TEST_CPPFLAGS) $(SANFLAGS) tests/test_bencode_parser.c src/bencode_parser.c vendor/munit/munit.c -o loco-tests
+test-sanitize: tests/test_main.c tests/test_bencode_parser.c	src/bencode_parser.c include/bencode_parser.h tests/test_torrent_metadata.c src/torrent_metadata.c include/torrent_metadata.h vendor/munit/munit.c vendor/munit/munit.h 
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(TEST_CPPFLAGS) $(SANFLAGS) tests/test_main.c tests/test_bencode_parser.c src/bencode_parser.c tests/test_torrent_metadata.c src/torrent_metadata.c vendor/munit/munit.c -o loco-tests
 	./loco-tests
 
 clean:	
 	rm -rf loco loco-tests
 
-.PHONY:	clean sanitize test
+.PHONY:	clean sanitize test test-sanitize
