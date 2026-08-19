@@ -1322,9 +1322,5 @@ static MunitTest tests[] = {
 
 };
 
-static const MunitSuite suite = {"/bencode_parser", tests, NULL, 1,
+const MunitSuite bencode_parser_suite = {"/bencode_parser", tests, NULL, 1,
                                  MUNIT_SUITE_OPTION_NONE};
-
-int main(int argc, char *argv[]) {
-  return munit_suite_main(&suite, NULL, argc, argv);
-}
