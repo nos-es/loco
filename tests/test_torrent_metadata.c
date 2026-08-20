@@ -421,6 +421,39 @@ static MunitResult test_torrent_metadata_find_length_accepts_zero_length(
   return MUNIT_OK;
 }
 
+static MunitResult
+test_torrent_metadata_find_piece_length_returns_valid_piece_length(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char length_key[] = "piece length";
+  const size_t key_len = sizeof(length_key) - 1;
+  const int64_t integer_value = 42;
+
+  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+                                             .key.length = key_len,
+                                             .value.type = INTEGER,
+                                             .value.value.integer =
+                                                 integer_value};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+
+  const bencode_object_t *result =
+      torrent_metadata_find_piece_length(&info_dict);
+
+  munit_assert_not_null(result);
+  munit_assert_ptr_equal(result, &info_dict.value.dictionary.entries[0].value);
+  munit_assert_int(result->type, ==, INTEGER);
+  munit_assert_int64(result->value.integer, ==, integer_value);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -464,6 +497,9 @@ static MunitTest tests[] = {
     {"/find_length/accepts-zero-length",
      test_torrent_metadata_find_length_accepts_zero_length, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_piece_length/returns-valid-piece-length",
+     test_torrent_metadata_find_piece_length_returns_valid_piece_length, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
