@@ -192,6 +192,76 @@ test_torrent_metadata_find_name_rejects_wrong_name_value_type(
   return MUNIT_OK;
 }
 
+static MunitResult test_torrent_metadata_find_name_finds_valid_name_key(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char name_key[] = "name";
+  const unsigned char byte_string[] = "test";
+  const size_t byte_string_len = sizeof(byte_string) - 1;
+
+  bencode_dictionary_entry_t name_entry = {
+      .key.data = name_key,
+      .key.length = sizeof(name_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = byte_string,
+      .value.value.byte_string.length = byte_string_len};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = name_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_name(&info_dict);
+  munit_assert_not_null(result);
+  munit_assert_ptr_equal(result, &info_dict.value.dictionary.entries[0].value);
+  munit_assert_int(result->type, ==, BYTE_STRING);
+  munit_assert_memory_equal(byte_string_len, result->value.byte_string.data,
+                            byte_string);
+  munit_assert_size(result->value.byte_string.length, ==, byte_string_len);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_torrent_metadata_find_name_rejects_dict_with_missing_name_key(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  const unsigned char first_dummy_key[] = "first_dummy";
+  bencode_dictionary_entry_t first_dummy_entry = {
+      .key.data = first_dummy_key,
+      .key.length = sizeof(first_dummy_key) - 1,
+      .value.type = INTEGER,
+      .value.value.integer = 42};
+
+  const unsigned char second_dummy_key[] = "second_dummy";
+  bencode_dictionary_entry_t second_dummy_entry = {
+      .key.data = second_dummy_key,
+      .key.length = sizeof(second_dummy_key) - 1,
+      .value.type = DICTIONARY,
+      .value.value.dictionary.entries = NULL,
+      .value.value.dictionary.capacity = 0,
+      .value.value.dictionary.count = 0};
+
+  bencode_dictionary_entry_t entries[2];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 2,
+                                .value.dictionary.capacity = 2};
+
+  info_dict.value.dictionary.entries[0] = first_dummy_entry;
+  info_dict.value.dictionary.entries[1] = second_dummy_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_name(&info_dict);
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -214,6 +284,12 @@ static MunitTest tests[] = {
     {"/find_name/reject-wrong-name-value-type",
      test_torrent_metadata_find_name_rejects_wrong_name_value_type, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_name/returns-valid-name-byte-string",
+     test_torrent_metadata_find_name_finds_valid_name_key, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_name/rejects-dictionary-with-missing-name-key",
+     test_torrent_metadata_find_name_rejects_dict_with_missing_name_key, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
