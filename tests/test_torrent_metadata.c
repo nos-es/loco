@@ -262,6 +262,165 @@ test_torrent_metadata_find_name_rejects_dict_with_missing_name_key(
 
   return MUNIT_OK;
 }
+
+static MunitResult test_torrent_metadata_find_length_finds_valid_length_key(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char length_key[] = "length";
+  const size_t key_len = sizeof(length_key) - 1;
+  const int64_t integer_value = 42;
+
+  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+                                             .key.length = key_len,
+                                             .value.type = INTEGER,
+                                             .value.value.integer =
+                                                 integer_value};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_length(&info_dict);
+  munit_assert_not_null(result);
+  munit_assert_ptr_equal(result, &info_dict.value.dictionary.entries[0].value);
+  munit_assert_int(result->type, ==, INTEGER);
+  munit_assert_int64(result->value.integer, ==, integer_value);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_torrent_metadata_find_length_rejects_negative_length(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char length_key[] = "length";
+  const size_t key_len = sizeof(length_key) - 1;
+  const int64_t integer_value = -42;
+
+  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+                                             .key.length = key_len,
+                                             .value.type = INTEGER,
+                                             .value.value.integer =
+                                                 integer_value};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_length(&info_dict);
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_torrent_metadata_find_length_rejects_dict_with_missing_length_key(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  const unsigned char first_dummy_key[] = "first_dummy";
+  bencode_dictionary_entry_t first_dummy_entry = {
+      .key.data = first_dummy_key,
+      .key.length = sizeof(first_dummy_key) - 1,
+      .value.type = INTEGER,
+      .value.value.integer = 42};
+
+  const unsigned char second_dummy_key[] = "second_dummy";
+  bencode_dictionary_entry_t second_dummy_entry = {
+      .key.data = second_dummy_key,
+      .key.length = sizeof(second_dummy_key) - 1,
+      .value.type = DICTIONARY,
+      .value.value.dictionary.entries = NULL,
+      .value.value.dictionary.capacity = 0,
+      .value.value.dictionary.count = 0};
+
+  bencode_dictionary_entry_t entries[2];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 2,
+                                .value.dictionary.capacity = 2};
+
+  info_dict.value.dictionary.entries[0] = first_dummy_entry;
+  info_dict.value.dictionary.entries[1] = second_dummy_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_length(&info_dict);
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_torrent_metadata_find_length_rejects_wrong_length_value_type(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char length_key[] = "length";
+  const size_t key_len = sizeof(length_key) - 1;
+  const unsigned char key_value[] = "42";
+  const unsigned char value_len = sizeof(key_value) - 1;
+  const bencode_data_type_t wrong_type = BYTE_STRING;
+
+  bencode_dictionary_entry_t length_entry = {
+      .key.data = length_key,
+      .key.length = key_len,
+      .value.type = wrong_type,
+      .value.value.byte_string.data = key_value,
+      .value.value.byte_string.length = value_len};
+
+  bencode_dictionary_entry_t entries[1];
+  const bencode_object_t info_dict = {.type = DICTIONARY,
+                                      .value.dictionary.entries = entries,
+                                      .value.dictionary.count = 1,
+                                      .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_length(&info_dict);
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
+static MunitResult test_torrent_metadata_find_length_accepts_zero_length(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char length_key[] = "length";
+  const size_t key_len = sizeof(length_key) - 1;
+  const int64_t integer_value = 0;
+
+  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+                                             .key.length = key_len,
+                                             .value.type = INTEGER,
+                                             .value.value.integer =
+                                                 integer_value};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_length(&info_dict);
+  munit_assert_not_null(result);
+  munit_assert_ptr_equal(result, &info_dict.value.dictionary.entries[0].value);
+  munit_assert_int(result->type, ==, INTEGER);
+  munit_assert_int64(result->value.integer, ==, integer_value);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -290,6 +449,21 @@ static MunitTest tests[] = {
     {"/find_name/rejects-dictionary-with-missing-name-key",
      test_torrent_metadata_find_name_rejects_dict_with_missing_name_key, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_length/returns-valid-length",
+     test_torrent_metadata_find_length_finds_valid_length_key, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_length/rejects-negative-length",
+     test_torrent_metadata_find_length_rejects_negative_length, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_length/rejects-missing-length-key",
+     test_torrent_metadata_find_length_rejects_dict_with_missing_length_key,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_length/reject-wrong-length-value-type",
+     test_torrent_metadata_find_length_rejects_wrong_length_value_type, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_length/accepts-zero-length",
+     test_torrent_metadata_find_length_accepts_zero_length, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
