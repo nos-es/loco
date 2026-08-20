@@ -430,7 +430,7 @@ test_torrent_metadata_find_piece_length_returns_valid_piece_length(
   const size_t key_len = sizeof(length_key) - 1;
   const int64_t integer_value = 42;
 
-  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+  bencode_dictionary_entry_t piece_length_entry = {.key.data = length_key,
                                              .key.length = key_len,
                                              .value.type = INTEGER,
                                              .value.value.integer =
@@ -442,7 +442,7 @@ test_torrent_metadata_find_piece_length_returns_valid_piece_length(
                                 .value.dictionary.count = 1,
                                 .value.dictionary.capacity = 1};
 
-  info_dict.value.dictionary.entries[0] = length_entry;
+  info_dict.value.dictionary.entries[0] = piece_length_entry;
 
   const bencode_object_t *result =
       torrent_metadata_find_piece_length(&info_dict);
