@@ -420,7 +420,7 @@ static MunitResult test_torrent_metadata_find_length_accepts_zero_length(
 
   return MUNIT_OK;
 }
-// piece length
+
 static MunitResult
 test_torrent_metadata_find_piece_length_returns_valid_piece_length(
     const MunitParameter params[], void *user_data) {
@@ -582,6 +582,43 @@ static MunitResult test_torrent_metadata_find_piece_length_rejects_zero_length(
 
   return MUNIT_OK;
 }
+
+static MunitResult test_torrent_metadata_find_pieces_returns_valid_pieces_value(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char pieces_key[] = "pieces";
+  const unsigned char byte_string[] =
+      "abcdefghijklmnopqrstabcdefghijklmnopqrst";
+  const size_t byte_string_len = sizeof(byte_string) - 1;
+
+  bencode_dictionary_entry_t pieces_entry = {
+      .key.data = pieces_key,
+      .key.length = sizeof(pieces_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = byte_string,
+      .value.value.byte_string.length = byte_string_len};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = pieces_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_pieces(&info_dict);
+
+  munit_assert_not_null(result);
+  munit_assert_ptr_equal(result, &info_dict.value.dictionary.entries[0].value);
+  munit_assert_int(result->type, ==, BYTE_STRING);
+  munit_assert_memory_equal(byte_string_len, result->value.byte_string.data,
+                            byte_string);
+  munit_assert_size(result->value.byte_string.length, ==, byte_string_len);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -628,7 +665,6 @@ static MunitTest tests[] = {
     {"/find_piece_length/returns-valid-piece-length",
      test_torrent_metadata_find_piece_length_returns_valid_piece_length, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
-
     {"/find_piece_length/rejects-negative-piece-length",
      test_torrent_metadata_find_piece_length_rejects_negative_length, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
@@ -640,6 +676,9 @@ static MunitTest tests[] = {
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/find_piece_length/rejects-zero-length",
      test_torrent_metadata_find_piece_length_rejects_zero_length, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_pieces/returns-valid-pieces",
+     test_torrent_metadata_find_pieces_returns_valid_pieces_value, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
