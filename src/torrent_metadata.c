@@ -53,3 +53,21 @@ torrent_metadata_find_name(const bencode_object_t *info) {
 
   return find_entry_in_dictionary(info, name_key_name, key_len, BYTE_STRING);
 }
+
+const bencode_object_t *
+torrent_metadata_find_length(const bencode_object_t *info) {
+
+  static const unsigned char length_key_name[] = "length";
+  const size_t key_len = sizeof(length_key_name) - 1;
+  const bencode_object_t *bencode_obj =
+      find_entry_in_dictionary(info, length_key_name, key_len, INTEGER);
+
+  if (bencode_obj == NULL) {
+    return NULL;
+  }
+  if (bencode_obj->value.integer < 0) {
+    return NULL;
+  }
+
+  return bencode_obj;
+}
