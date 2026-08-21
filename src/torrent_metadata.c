@@ -36,6 +36,43 @@ find_entry_in_dictionary(const bencode_object_t *root,
   }
   return NULL;
 }
+
+bool torrent_metadata_extract_info(const bencode_object_t *root,
+                                   torrent_info_t *out_info) {
+  if (root == NULL || out_info == NULL) {
+    return false;
+  }
+  if (root->type != DICTIONARY) {
+    return false;
+  }
+  torrent_info_t temp_info = {.name = {.data = NULL, .length = 0},
+                              .length = 0,
+                              .piece_length = 0,
+                              .pieces = {.data = NULL, .length = 0}};
+
+  const bencode_object_t *info_dict = torrent_metadata_find_info(root);
+  if (info_dict == NULL) {
+    return false;
+  }
+  const bencode_object_t *name = torrent_metadata_find_name(info_dict);
+  const bencode_object_t *length = torrent_metadata_find_length(info_dict);
+  const bencode_object_t *piece_length =
+      torrent_metadata_find_piece_length(info_dict);
+  const bencode_object_t *pieces = torrent_metadata_find_pieces(info_dict);
+
+  if (name == NULL || length == NULL || piece_length == NULL ||
+      pieces == NULL) {
+    return false;
+  }
+  temp_info.name = name->value.byte_string;
+  temp_info.length = length->value.integer;
+  temp_info.piece_length = piece_length->value.integer;
+  temp_info.pieces = pieces->value.byte_string;
+
+  *out_info = temp_info;
+
+  return true;
+}
 const bencode_object_t *
 torrent_metadata_find_info(const bencode_object_t *root) {
 
