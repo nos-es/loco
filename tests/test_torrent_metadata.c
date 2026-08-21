@@ -716,6 +716,115 @@ test_torrent_metadata_find_pieces_rejects_length_not_divisible_by_20(
 
   return MUNIT_OK;
 }
+
+static MunitResult
+test_torrent_metadata_extracts_info_extracts_info(const MunitParameter params[],
+                                                  void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  const unsigned char name_key[] = "name";
+  const unsigned char name_byte_string[] = "test";
+  const size_t name_byte_string_len = sizeof(name_byte_string) - 1;
+
+  bencode_dictionary_entry_t name_entry = {
+      .key.data = name_key,
+      .key.length = sizeof(name_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = name_byte_string,
+      .value.value.byte_string.length = name_byte_string_len};
+
+  const unsigned char length_key[] = "length";
+  const size_t length_key_len = sizeof(length_key) - 1;
+  const int64_t length_integer_value = 80;
+
+  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+                                             .key.length = length_key_len,
+                                             .value.type = INTEGER,
+                                             .value.value.integer =
+                                                 length_integer_value};
+
+  const unsigned char piece_length_key[] = "piece length";
+  const size_t piece_length_key_len = sizeof(piece_length_key) - 1;
+  const int64_t piece_length_integer_value = 40;
+
+  bencode_dictionary_entry_t piece_length_entry = {
+      .key.data = piece_length_key,
+      .key.length = piece_length_key_len,
+      .value.type = INTEGER,
+      .value.value.integer = piece_length_integer_value};
+
+  const unsigned char pieces_key[] = "pieces";
+  const unsigned char pieces_byte_string[] =
+      "abcdefghijklmnopqrstabcdefghijklmnopqrst";
+  const size_t pieces_byte_string_len = sizeof(pieces_byte_string) - 1;
+
+  bencode_dictionary_entry_t pieces_entry = {
+      .key.data = pieces_key,
+      .key.length = sizeof(pieces_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = pieces_byte_string,
+      .value.value.byte_string.length = pieces_byte_string_len};
+
+  bencode_dictionary_entry_t entries[4];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 4,
+                                .value.dictionary.capacity = 4};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+  info_dict.value.dictionary.entries[1] = name_entry;
+  info_dict.value.dictionary.entries[2] = piece_length_entry;
+  info_dict.value.dictionary.entries[3] = pieces_entry;
+
+  const unsigned char info_key[] = "info";
+
+  bencode_dictionary_entry_t info_entry = {
+      .key.data = info_key,
+      .key.length = sizeof(info_key) - 1,
+  };
+  info_entry.value = info_dict;
+  bencode_dictionary_entry_t info_entry_slot[1];
+  bencode_object_t root_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = info_entry_slot,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  root_dict.value.dictionary.entries[0] = info_entry;
+
+  torrent_info_t test_info = {.name = {.data = NULL, .length = 0},
+                              .length = 0,
+                              .piece_length = 0,
+                              .pieces = {.data = NULL, .length = 0}};
+
+  bool extracted = torrent_metadata_extract_info(&root_dict, &test_info);
+
+  munit_assert_true(extracted);
+
+  munit_assert_int64(test_info.length, ==, length_integer_value);
+  munit_assert_int64(test_info.piece_length, ==, piece_length_integer_value);
+
+  munit_assert_memory_equal(name_byte_string_len, test_info.name.data,
+                            name_byte_string);
+
+  munit_assert_ptr_equal(test_info.name.data,
+                         root_dict.value.dictionary.entries[0]
+                             .value.value.dictionary.entries[1]
+                             .value.value.byte_string.data);
+
+  munit_assert_size(test_info.name.length, ==, name_byte_string_len);
+
+  munit_assert_memory_equal(pieces_byte_string_len, test_info.pieces.data,
+                            pieces_byte_string);
+
+  munit_assert_ptr_equal(test_info.pieces.data,
+                         root_dict.value.dictionary.entries[0]
+                             .value.value.dictionary.entries[3]
+                             .value.value.byte_string.data);
+  munit_assert_size(test_info.pieces.length, ==, pieces_byte_string_len);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -786,6 +895,9 @@ static MunitTest tests[] = {
     {"/find_pieces/rejects-byte-length-not-divisble-by-20",
      test_torrent_metadata_find_pieces_rejects_length_not_divisible_by_20, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/extract_info/extract-valid-info",
+     test_torrent_metadata_extracts_info_extracts_info, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
