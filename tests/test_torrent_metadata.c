@@ -619,6 +619,103 @@ static MunitResult test_torrent_metadata_find_pieces_returns_valid_pieces_value(
   return MUNIT_OK;
 }
 
+static MunitResult test_torrent_metadata_find_pieces_rejects_missing_pieces_key(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  const unsigned char first_dummy_key[] = "first_dummy";
+  bencode_dictionary_entry_t first_dummy_entry = {
+      .key.data = first_dummy_key,
+      .key.length = sizeof(first_dummy_key) - 1,
+      .value.type = INTEGER,
+      .value.value.integer = 42};
+
+  const unsigned char second_dummy_key[] = "second_dummy";
+  bencode_dictionary_entry_t second_dummy_entry = {
+      .key.data = second_dummy_key,
+      .key.length = sizeof(second_dummy_key) - 1,
+      .value.type = DICTIONARY,
+      .value.value.dictionary.entries = NULL,
+      .value.value.dictionary.capacity = 0,
+      .value.value.dictionary.count = 0};
+
+  bencode_dictionary_entry_t entries[2];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 2,
+                                .value.dictionary.capacity = 2};
+
+  info_dict.value.dictionary.entries[0] = first_dummy_entry;
+  info_dict.value.dictionary.entries[1] = second_dummy_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_pieces(&info_dict);
+
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_torrent_metadata_find_pieces_rejects_wrong_value_type(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  const unsigned char pieces_key[] = "pieces";
+  const int64_t integer_value = 42;
+
+  bencode_dictionary_entry_t pieces_entry = {
+      .key.data = pieces_key,
+      .key.length = sizeof(pieces_key) - 1,
+      .value.type = INTEGER,
+      .value.value.integer = integer_value};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = pieces_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_pieces(&info_dict);
+
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_torrent_metadata_find_pieces_rejects_length_not_divisible_by_20(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char pieces_key[] = "pieces";
+  const unsigned char byte_string[] = "abcdefghijklmnopqrstabcdefghijklmnopq";
+  const size_t byte_string_len = sizeof(byte_string) - 1;
+
+  bencode_dictionary_entry_t pieces_entry = {
+      .key.data = pieces_key,
+      .key.length = sizeof(pieces_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = byte_string,
+      .value.value.byte_string.length = byte_string_len};
+
+  bencode_dictionary_entry_t entries[1];
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = entries,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  info_dict.value.dictionary.entries[0] = pieces_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_pieces(&info_dict);
+
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -680,6 +777,15 @@ static MunitTest tests[] = {
     {"/find_pieces/returns-valid-pieces",
      test_torrent_metadata_find_pieces_returns_valid_pieces_value, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_pieces/rejects-missing-pieces-key",
+     test_torrent_metadata_find_pieces_rejects_missing_pieces_key, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_pieces/rejects-wrong-pieces-value-type",
+     test_torrent_metadata_find_pieces_rejects_wrong_value_type, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_pieces/rejects-byte-length-not-divisble-by-20",
+     test_torrent_metadata_find_pieces_rejects_length_not_divisible_by_20, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
