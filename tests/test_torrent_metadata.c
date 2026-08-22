@@ -1,3 +1,4 @@
+#include "bencode_parser.h"
 #include "bencode_types.h"
 #include "munit.h"
 #include "torrent_metadata.h"
@@ -839,6 +840,67 @@ test_torrent_metadata_extract_info_extracts_valid_info_correctly(
 
   return MUNIT_OK;
 }
+static MunitResult
+test_torrent_metadata_info_span_points_to_original_bencoded_info(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  parser_state_t parser;
+  unsigned char input_data[] = "d4:infod6:lengthi40e4:name4:test12:piece "
+                               "lengthi40e6:pieces20:abcdefghijklmnopqrstee";
+
+  size_t input_length = sizeof(input_data) - 1;
+  size_t expected_parser_position_after_parse = sizeof(input_data) - 1;
+
+  bool parser_initialzed =
+      bencode_parser_init(&parser, input_data, input_length);
+
+  munit_assert_true(parser_initialzed);
+  munit_assert_ptr_equal(parser.data, input_data);
+  munit_assert_size(parser.length, ==, input_length);
+  munit_assert_size(parser.position, ==, 0);
+
+  size_t dummy_count = 99;
+  size_t dummy_capacity = 123;
+  bencode_object_t parsed_obj = {
+      .type = INVALID,
+      .value.dictionary = {
+          .entries = NULL, .count = dummy_count, .capacity = dummy_capacity}};
+
+  bool parsed = parse_bencode_buffer(&parser, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
+  munit_assert_int(parsed_obj.type, ==, DICTIONARY);
+
+  torrent_info_t test_info = {.name = {.data = NULL, .length = 0},
+                              .length = 0,
+                              .piece_length = 0,
+                              .pieces = {.data = NULL, .length = 0}};
+
+  bool extracted = torrent_metadata_extract_info(&parsed_obj, &test_info);
+
+  munit_assert_true(extracted);
+
+  unsigned char expected_info_bytes[] =
+      "d6:lengthi40e4:name4:test12:piece "
+      "lengthi40e6:pieces20:abcdefghijklmnopqrste";
+  size_t expected_start_offset = 7;
+  size_t expected_info_span_length = sizeof(expected_info_bytes) - 1;
+
+  munit_assert_size(test_info.info_span.start_offset, ==,
+                    expected_start_offset);
+
+  munit_assert_size(test_info.info_span.length, ==, expected_info_span_length);
+
+  munit_assert_memory_equal(expected_info_span_length, expected_info_bytes,
+                            input_data + test_info.info_span.start_offset);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -911,6 +973,9 @@ static MunitTest tests[] = {
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/extract_info/extract-valid-info",
      test_torrent_metadata_extract_info_extracts_valid_info_correctly, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/extract_info/info-span-points-to-original-bencoded-info",
+     test_torrent_metadata_info_span_points_to_original_bencoded_info, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
