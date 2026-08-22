@@ -172,6 +172,8 @@ test_parse_bencode_buffer_returns_integer_object(const MunitParameter params[],
   munit_assert_true(parsed);
   munit_assert_int(parsed_obj.type, ==, INTEGER);
   munit_assert_int64(parsed_obj.value.integer, ==, 42);
+  munit_assert_size(parsed_obj.start_offset, ==, 0);
+  munit_assert_size(parsed_obj.encoded_length, ==, 4);
   munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
 
   return MUNIT_OK;
@@ -1323,4 +1325,4 @@ static MunitTest tests[] = {
 };
 
 const MunitSuite bencode_parser_suite = {"/bencode_parser", tests, NULL, 1,
-                                 MUNIT_SUITE_OPTION_NONE};
+                                         MUNIT_SUITE_OPTION_NONE};
