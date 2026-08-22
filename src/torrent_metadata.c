@@ -48,7 +48,8 @@ bool torrent_metadata_extract_info(const bencode_object_t *root,
   torrent_info_t temp_info = {.name = {.data = NULL, .length = 0},
                               .length = 0,
                               .piece_length = 0,
-                              .pieces = {.data = NULL, .length = 0}};
+                              .pieces = {.data = NULL, .length = 0},
+                              .info_span = {.start_offset = 0, .length = 0}};
 
   const bencode_object_t *info_dict = torrent_metadata_find_info(root);
   if (info_dict == NULL) {
@@ -68,6 +69,8 @@ bool torrent_metadata_extract_info(const bencode_object_t *root,
   temp_info.length = length->value.integer;
   temp_info.piece_length = piece_length->value.integer;
   temp_info.pieces = pieces->value.byte_string;
+  temp_info.info_span.start_offset = info_dict->start_offset;
+  temp_info.info_span.length = info_dict->encoded_length;
 
   *out_info = temp_info;
 
