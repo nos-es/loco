@@ -577,7 +577,9 @@ static MunitResult test_torrent_metadata_find_piece_length_rejects_zero_length(
 
   info_dict.value.dictionary.entries[0] = piece_length_entry;
 
-  const bencode_object_t *result = torrent_metadata_find_length(&info_dict);
+  const bencode_object_t *result =
+      torrent_metadata_find_piece_length(&info_dict);
+
   munit_assert_null(result);
 
   return MUNIT_OK;
@@ -718,8 +720,8 @@ test_torrent_metadata_find_pieces_rejects_length_not_divisible_by_20(
 }
 
 static MunitResult
-test_torrent_metadata_extracts_info_extracts_info(const MunitParameter params[],
-                                                  void *user_data) {
+test_torrent_metadata_extract_info_extracts_valid_info_correctly(
+    const MunitParameter params[], void *user_data) {
   (void)params;
   (void)user_data;
 
@@ -896,8 +898,8 @@ static MunitTest tests[] = {
      test_torrent_metadata_find_pieces_rejects_length_not_divisible_by_20, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/extract_info/extract-valid-info",
-     test_torrent_metadata_extracts_info_extracts_info, NULL, NULL,
-     MUNIT_TEST_OPTION_NONE, NULL},
+     test_torrent_metadata_extract_info_extracts_valid_info_correctly, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
