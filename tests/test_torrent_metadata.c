@@ -769,10 +769,16 @@ test_torrent_metadata_extract_info_extracts_valid_info_correctly(
       .value.value.byte_string.length = pieces_byte_string_len};
 
   bencode_dictionary_entry_t entries[4];
+
+  const size_t expected_info_start_offset = 123;
+  const size_t expected_info_encoded_length = 456;
+
   bencode_object_t info_dict = {.type = DICTIONARY,
                                 .value.dictionary.entries = entries,
                                 .value.dictionary.count = 4,
-                                .value.dictionary.capacity = 4};
+                                .value.dictionary.capacity = 4,
+                                .start_offset = expected_info_start_offset,
+                                .encoded_length = expected_info_encoded_length};
 
   info_dict.value.dictionary.entries[0] = length_entry;
   info_dict.value.dictionary.entries[1] = name_entry;
@@ -802,6 +808,12 @@ test_torrent_metadata_extract_info_extracts_valid_info_correctly(
   bool extracted = torrent_metadata_extract_info(&root_dict, &test_info);
 
   munit_assert_true(extracted);
+
+  munit_assert_size(test_info.info_span.start_offset, ==,
+                    expected_info_start_offset);
+
+  munit_assert_size(test_info.info_span.length, ==,
+                    expected_info_encoded_length);
 
   munit_assert_int64(test_info.length, ==, length_integer_value);
   munit_assert_int64(test_info.piece_length, ==, piece_length_integer_value);
