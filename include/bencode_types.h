@@ -41,6 +41,8 @@ typedef union BencodeValue {
 typedef struct BencodeObject {
   bencode_data_type_t type;
   bencode_value_t value;
+  size_t start_offset;
+  size_t encoded_length;
 } bencode_object_t;
 
 typedef struct BencodeDictionaryEntry {

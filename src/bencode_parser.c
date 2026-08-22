@@ -570,7 +570,7 @@ static bool parse_bencode_dict(parser_state_t *parser,
       return false;
     }
 
-    //check sorted as raw strings
+    // check sorted as raw strings
     if (temp_dict.count > 0) {
       bencode_segment_t previous_key =
           temp_dict.entries[temp_dict.count - 1].key;
@@ -699,6 +699,12 @@ bool parse_bencode_buffer(parser_state_t *parser,
 
   bencode_data_type_t out_byte_datatype = determine_bencode_data_type(out_byte);
 
+  if (out_byte_datatype == INVALID) {
+    return false;
+  }
+
+  bencode_object_t parsed_obj;
+
   if (out_byte_datatype == BYTE_STRING) {
     bencode_object_t temp_obj = {
         .type = BYTE_STRING, .value.byte_string = {.data = NULL, .length = 0}};
@@ -710,13 +716,11 @@ bool parse_bencode_buffer(parser_state_t *parser,
       parser->position = parser_start_position;
       return false;
     }
-    *out_object = temp_obj;
-    return true;
+    parsed_obj = temp_obj;
   }
 
   if (out_byte_datatype == INTEGER) {
-    bencode_object_t temp_obj = {
-        .type = INTEGER, .value.byte_string = {.data = NULL, .length = 0}};
+    bencode_object_t temp_obj = {.type = INTEGER, .value.integer = 0};
 
     bool bencode_integer_parsed =
         parse_bencode_integer(parser, &temp_obj.value.integer);
@@ -725,8 +729,7 @@ bool parse_bencode_buffer(parser_state_t *parser,
       parser->position = parser_start_position;
       return false;
     }
-    *out_object = temp_obj;
-    return true;
+    parsed_obj = temp_obj;
   }
   if (out_byte_datatype == LIST) {
 
@@ -739,8 +742,7 @@ bool parse_bencode_buffer(parser_state_t *parser,
       parser->position = parser_start_position;
       return false;
     }
-    *out_object = temp_obj;
-    return true;
+    parsed_obj = temp_obj;
   }
   if (out_byte_datatype == DICTIONARY) {
     bencode_object_t temp_obj = {
@@ -752,9 +754,12 @@ bool parse_bencode_buffer(parser_state_t *parser,
       parser->position = parser_start_position;
       return false;
     }
-    *out_object = temp_obj;
-    return true;
+    parsed_obj = temp_obj;
   }
+  parsed_obj.start_offset = parser_start_position;
+  parsed_obj.encoded_length = parser->position - parser_start_position;
 
-  return false;
+  *out_object = parsed_obj;
+
+  return true;
 }
