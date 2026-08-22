@@ -159,7 +159,9 @@ test_parse_bencode_buffer_returns_integer_object(const MunitParameter params[],
   parser_state_t parser;
   const unsigned char input_data[] = "i42e";
   size_t input_length = sizeof(input_data) - 1;
+  size_t expected_start_offset = 0;
   size_t expected_parser_position_after_parse = 4;
+  size_t expected_encoded_length = 4;
   bool parser_initialzed =
       bencode_parser_init(&parser, input_data, input_length);
 
@@ -172,8 +174,8 @@ test_parse_bencode_buffer_returns_integer_object(const MunitParameter params[],
   munit_assert_true(parsed);
   munit_assert_int(parsed_obj.type, ==, INTEGER);
   munit_assert_int64(parsed_obj.value.integer, ==, 42);
-  munit_assert_size(parsed_obj.start_offset, ==, 0);
-  munit_assert_size(parsed_obj.encoded_length, ==, 4);
+  munit_assert_size(parsed_obj.start_offset, ==, expected_start_offset);
+  munit_assert_size(parsed_obj.encoded_length, ==, expected_encoded_length);
   munit_assert_size(parser.position, ==, expected_parser_position_after_parse);
 
   return MUNIT_OK;
@@ -1003,6 +1005,8 @@ static MunitResult test_bencode_buffer_parses_dictionary_with_inner_list(
   munit_assert_ptr(parsed_obj.value.dictionary.entries, !=, NULL);
   munit_assert_true(parsed_obj.value.dictionary.capacity >=
                     parsed_obj.value.dictionary.count);
+  munit_assert_size(parsed_obj.start_offset, ==, 0);
+  munit_assert_size(parsed_obj.encoded_length, ==, sizeof(input_data) - 1);
 
   munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
                    INTEGER);
@@ -1037,6 +1041,15 @@ static MunitResult test_bencode_buffer_parses_dictionary_with_inner_list(
                              .value.value.list.items[0]
                              .value.byte_string.data,
                          input_data + 17);
+
+  munit_assert_size(parsed_obj.value.dictionary.entries[1]
+                        .value.value.list.items[0]
+                        .start_offset,
+                    ==, 15);
+  munit_assert_size(parsed_obj.value.dictionary.entries[1]
+                        .value.value.list.items[0]
+                        .encoded_length,
+                    ==, 6);
 
   free_bencode_object(&parsed_obj);
 
