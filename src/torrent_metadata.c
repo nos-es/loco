@@ -37,6 +37,36 @@ find_entry_in_dictionary(const bencode_object_t *root,
   return NULL;
 }
 
+bool torrent_metadata_extract(const bencode_object_t *root,
+                              torrent_metadata_t *out_torrent_metadata) {
+
+  if (root == NULL || out_torrent_metadata == NULL) {
+    return false;
+  }
+  if (root->type != DICTIONARY) {
+    return false;
+  }
+  const bencode_object_t *announce = torrent_metadata_find_announce(root);
+
+  if (announce == NULL) {
+    return false;
+  }
+
+  torrent_info_t info = {0};
+
+  bool info_extracted = torrent_metadata_extract_info(root, &info);
+
+  if (!info_extracted) {
+    return false;
+  }
+
+  torrent_metadata_t temp_torrent_metadata = {
+      .announce = announce->value.byte_string, .info = info};
+
+  *out_torrent_metadata = temp_torrent_metadata;
+  return true;
+}
+
 bool torrent_metadata_extract_info(const bencode_object_t *root,
                                    torrent_info_t *out_info) {
   if (root == NULL || out_info == NULL) {
@@ -91,7 +121,8 @@ torrent_metadata_find_announce(const bencode_object_t *root) {
   const unsigned char announce_key_name[] = "announce";
   const size_t key_len = sizeof(announce_key_name) - 1;
 
-  return find_entry_in_dictionary(root, announce_key_name, key_len, BYTE_STRING);
+  return find_entry_in_dictionary(root, announce_key_name, key_len,
+                                  BYTE_STRING);
 }
 
 const bencode_object_t *
