@@ -991,6 +991,113 @@ static MunitResult test_torrent_metadata_find_announce_rejects_wrong_value_type(
 
   return MUNIT_OK;
 }
+
+static MunitResult test_torrent_metadata_extract_returns_correct_metadata(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  const unsigned char name_key[] = "name";
+  const unsigned char name_byte_string[] = "test";
+  const size_t name_byte_string_len = sizeof(name_byte_string) - 1;
+
+  bencode_dictionary_entry_t name_entry = {
+      .key.data = name_key,
+      .key.length = sizeof(name_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = name_byte_string,
+      .value.value.byte_string.length = name_byte_string_len};
+
+  const unsigned char length_key[] = "length";
+  const size_t length_key_len = sizeof(length_key) - 1;
+  const int64_t length_integer_value = 80;
+
+  bencode_dictionary_entry_t length_entry = {.key.data = length_key,
+                                             .key.length = length_key_len,
+                                             .value.type = INTEGER,
+                                             .value.value.integer =
+                                                 length_integer_value};
+
+  const unsigned char piece_length_key[] = "piece length";
+  const size_t piece_length_key_len = sizeof(piece_length_key) - 1;
+  const int64_t piece_length_integer_value = 40;
+
+  bencode_dictionary_entry_t piece_length_entry = {
+      .key.data = piece_length_key,
+      .key.length = piece_length_key_len,
+      .value.type = INTEGER,
+      .value.value.integer = piece_length_integer_value};
+
+  const unsigned char pieces_key[] = "pieces";
+  const unsigned char pieces_byte_string[] =
+      "abcdefghijklmnopqrstabcdefghijklmnopqrst";
+  const size_t pieces_byte_string_len = sizeof(pieces_byte_string) - 1;
+
+  bencode_dictionary_entry_t pieces_entry = {
+      .key.data = pieces_key,
+      .key.length = sizeof(pieces_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = pieces_byte_string,
+      .value.value.byte_string.length = pieces_byte_string_len};
+
+  bencode_dictionary_entry_t info_entries[4];
+
+  const size_t expected_info_start_offset = 123;
+  const size_t expected_info_encoded_length = 456;
+
+  bencode_object_t info_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = info_entries,
+                                .value.dictionary.count = 4,
+                                .value.dictionary.capacity = 4,
+                                .start_offset = expected_info_start_offset,
+                                .encoded_length = expected_info_encoded_length};
+
+  info_dict.value.dictionary.entries[0] = length_entry;
+  info_dict.value.dictionary.entries[1] = name_entry;
+  info_dict.value.dictionary.entries[2] = piece_length_entry;
+  info_dict.value.dictionary.entries[3] = pieces_entry;
+
+  const unsigned char info_key[] = "info";
+
+  bencode_dictionary_entry_t info_entry = {
+      .key.data = info_key,
+      .key.length = sizeof(info_key) - 1,
+  };
+  info_entry.value = info_dict;
+
+  const unsigned char announce_key[] = "announce";
+  const unsigned char announce_byte_string[] = "TRACKER URL";
+  size_t announce_value_len = sizeof(announce_byte_string) - 1;
+
+  bencode_dictionary_entry_t announce_entry = {
+      .key.data = announce_key,
+      .key.length = sizeof(announce_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = announce_byte_string,
+      .value.value.byte_string.length = announce_value_len};
+
+  bencode_dictionary_entry_t root_entries[2];
+  bencode_object_t root_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = root_entries,
+                                .value.dictionary.count = 2,
+                                .value.dictionary.capacity = 2};
+
+  root_dict.value.dictionary.entries[0] = announce_entry;
+  root_dict.value.dictionary.entries[1] = info_entry;
+  torrent_metadata_t torrent_metadata = {0};
+  bool extracted = torrent_metadata_extract(&root_dict, &torrent_metadata);
+
+  munit_assert_true(extracted);
+
+  munit_assert_memory_equal(announce_value_len, torrent_metadata.announce.data,
+                            announce_byte_string);
+  munit_assert_int64(torrent_metadata.info.length, ==, length_integer_value);
+
+  munit_assert_int64(torrent_metadata.info.piece_length, ==,
+                     piece_length_integer_value);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -1075,6 +1182,9 @@ static MunitTest tests[] = {
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/find_announce/rejects-wrong-value-type",
      test_torrent_metadata_find_announce_rejects_wrong_value_type, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/extract_torrent-metadata/returns-correct-metadata",
+     test_torrent_metadata_extract_returns_correct_metadata, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
