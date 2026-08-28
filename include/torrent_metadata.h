@@ -17,6 +17,14 @@ typedef struct TorrentInfo {
   bencoded_span_t info_span;
 } torrent_info_t;
 
+typedef struct TorrentMetadata {
+  bencode_segment_t announce;
+  torrent_info_t info;
+} torrent_metadata_t;
+
+bool torrent_metadata_extract(const bencode_object_t *root,
+                              torrent_metadata_t *out_torrent_metadata);
+
 bool torrent_metadata_extract_info(const bencode_object_t *root,
                                    torrent_info_t *out_info);
 const bencode_object_t *
