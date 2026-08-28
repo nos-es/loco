@@ -86,6 +86,15 @@ torrent_metadata_find_info(const bencode_object_t *root) {
 }
 
 const bencode_object_t *
+torrent_metadata_find_announce(const bencode_object_t *root) {
+
+  const unsigned char announce_key_name[] = "announce";
+  const size_t key_len = sizeof(announce_key_name) - 1;
+
+  return find_entry_in_dictionary(root, announce_key_name, key_len, BYTE_STRING);
+}
+
+const bencode_object_t *
 torrent_metadata_find_name(const bencode_object_t *info) {
 
   static const unsigned char name_key_name[] = "name";
