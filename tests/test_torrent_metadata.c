@@ -902,6 +902,95 @@ test_torrent_metadata_info_span_points_to_original_bencoded_info(
   return MUNIT_OK;
 }
 
+static MunitResult
+test_torrent_metadata_find_announce_finds_valid_announce_byte_string(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char announce_key[] = "announce";
+  const unsigned char announce_byte_string[] = "TRACKER URL";
+  size_t announce_value_len = sizeof(announce_byte_string) - 1;
+
+  bencode_dictionary_entry_t announce_entry = {
+      .key.data = announce_key,
+      .key.length = sizeof(announce_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = announce_byte_string,
+      .value.value.byte_string.length = announce_value_len};
+
+  bencode_dictionary_entry_t announce_entry_slot[1];
+  bencode_object_t root_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = announce_entry_slot,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  root_dict.value.dictionary.entries[0] = announce_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_announce(&root_dict);
+  munit_assert_not_null(result);
+  munit_assert_int(result->type, ==, BYTE_STRING);
+  munit_assert_memory_equal(announce_value_len, result->value.byte_string.data,
+                            announce_byte_string);
+  munit_assert_size(announce_value_len, ==, result->value.byte_string.length);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_torrent_metadata_find_announce_rejects_missing_announce_key(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char some_key[] = "some";
+  const unsigned char some_byte_string[] = "Some content";
+  size_t some_value_len = sizeof(some_byte_string) - 1;
+
+  bencode_dictionary_entry_t some_entry = {
+      .key.data = some_key,
+      .key.length = sizeof(some_key) - 1,
+      .value.type = BYTE_STRING,
+      .value.value.byte_string.data = some_byte_string,
+      .value.value.byte_string.length = some_value_len};
+
+  bencode_dictionary_entry_t some_entry_slot[1];
+  bencode_object_t root_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = some_entry_slot,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  root_dict.value.dictionary.entries[0] = some_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_announce(&root_dict);
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
+static MunitResult test_torrent_metadata_find_announce_rejects_wrong_value_type(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+  const unsigned char announce_key[] = "announce";
+  const int64_t announce_value = 42;
+
+  bencode_dictionary_entry_t announce_entry = {
+      .key.data = announce_key,
+      .key.length = sizeof(announce_key) - 1,
+      .value.type = INTEGER,
+      .value.value.integer = announce_value};
+
+  bencode_dictionary_entry_t announce_entry_slot[1];
+  bencode_object_t root_dict = {.type = DICTIONARY,
+                                .value.dictionary.entries = announce_entry_slot,
+                                .value.dictionary.count = 1,
+                                .value.dictionary.capacity = 1};
+
+  root_dict.value.dictionary.entries[0] = announce_entry;
+
+  const bencode_object_t *result = torrent_metadata_find_announce(&root_dict);
+  munit_assert_null(result);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/find_info/returns-valid-info-dictionary",
      test_torrent_metadata_find_info_finds_valid_info_dict, NULL, NULL,
@@ -978,6 +1067,15 @@ static MunitTest tests[] = {
     {"/extract_info/info-span-points-to-original-bencoded-info",
      test_torrent_metadata_info_span_points_to_original_bencoded_info, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_announce/finds-valid-announce-byte-string",
+     test_torrent_metadata_find_announce_finds_valid_announce_byte_string, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_announce/rejects-missing-announce-key",
+     test_torrent_metadata_find_announce_rejects_missing_announce_key, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_announce/rejects-wrong-value-type",
+     test_torrent_metadata_find_announce_rejects_wrong_value_type, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
