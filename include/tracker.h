@@ -1,4 +1,5 @@
 #pragma once
+#include "bencode_types.h"
 #include "info_hash.h"
 #include "peer_id.h"
 #include <stdbool.h>
@@ -13,3 +14,6 @@ typedef struct TrackerRequest {
   uint64_t left;
   bool compact;
 } tracker_request_t;
+
+char *build_tracker_url(const bencode_segment_t *announce,
+                        const tracker_request_t *request);
