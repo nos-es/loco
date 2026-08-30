@@ -4,8 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-static MunitResult test_build_tracker_url(const MunitParameter params[],
-                                          void *user_data) {
+static MunitResult test_build_tracker_url_returns_correct_announce_url(
+    const MunitParameter params[], void *user_data) {
   (void)params;
   (void)user_data;
   const unsigned char announce_bytes[] = "https://tracker.example/announce";
@@ -27,13 +27,15 @@ static MunitResult test_build_tracker_url(const MunitParameter params[],
 
   char *result = build_tracker_url(&announce, &tracker_req);
   munit_assert_not_null(result);
+  munit_assert_memory_equal(announce.length, announce.data, result);
   free(result);
 
   return MUNIT_OK;
 }
 
 static MunitTest tests[] = {
-    {"/build_tracker/build_tracker", test_build_tracker_url, NULL, NULL,
+    {"/build_tracker_url/returns-correct-announce",
+     test_build_tracker_url_returns_correct_announce_url, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
