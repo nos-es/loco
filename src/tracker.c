@@ -3,6 +3,7 @@
 #include "peer_id.h"
 #include <curl/curl.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -36,6 +37,16 @@ static bool add_query_parameter_to_url(char *url, size_t capacity,
 
   memcpy(url + *position, parameter_value, parameter_value_length);
   *position += parameter_value_length;
+  return true;
+}
+
+static bool safely_increased_url_length(size_t *url_length,
+                                        size_t increasing_length) {
+  if (*url_length > (SIZE_MAX - increasing_length)) {
+
+    return false;
+  }
+  *url_length += increasing_length;
   return true;
 }
 
@@ -131,11 +142,24 @@ char *build_tracker_url(const bencode_segment_t *announce,
   size_t static_text_len = strlen(
       "?info_hash=&peer_id=&port=&uploaded=&downloaded=&left=&compact=1");
 
-  size_t url_length = announce_len + info_hash_encoded_len +
-                      peer_id_encoded_len + port_len + uploaded_len +
-                      downloaded_len + left_len + static_text_len;
+  size_t url_capacity = 1;
+  if (!safely_increased_url_length(&url_capacity, announce_len) ||
+      !safely_increased_url_length(&url_capacity, info_hash_encoded_len) ||
+      !safely_increased_url_length(&url_capacity, peer_id_encoded_len) ||
+      !safely_increased_url_length(&url_capacity, port_len) ||
+      !safely_increased_url_length(&url_capacity, uploaded_len) ||
+      !safely_increased_url_length(&url_capacity, downloaded_len) ||
+      !safely_increased_url_length(&url_capacity, left_len) ||
+      !safely_increased_url_length(&url_capacity, static_text_len)) {
 
-  char *url = malloc(url_length + 1);
+    curl_free(info_hash_encoded);
+    curl_free(peer_id_encoded);
+    curl_easy_cleanup(curl);
+
+    return NULL;
+  }
+
+  char *url = malloc(url_capacity);
 
   if (url == NULL) {
     curl_free(info_hash_encoded);
@@ -155,7 +179,7 @@ char *build_tracker_url(const bencode_segment_t *announce,
     separator = '?';
   }
 
-  if (position >= url_length) {
+  if (position >= url_capacity) {
 
     curl_free(info_hash_encoded);
     curl_free(peer_id_encoded);
@@ -167,19 +191,29 @@ char *build_tracker_url(const bencode_segment_t *announce,
   url[position] = separator;
   position++;
 
-  if (!add_query_parameter_to_url(url, url_length,
+  if (!add_query_parameter_to_url(url, url_capacity,
                                   "info_hash=", info_hash_encoded, &position) ||
-      !add_query_parameter_to_url(url, url_length, "&peer_id=", peer_id_encoded,
+      !add_query_parameter_to_url(url, url_capacity,
+                                  "&peer_id=", peer_id_encoded, &position) ||
+      !add_query_parameter_to_url(url, url_capacity, "&port=", port,
                                   &position) ||
-      !add_query_parameter_to_url(url, url_length, "&port=", port, &position) ||
-      !add_query_parameter_to_url(url, url_length, "&uploaded=", uploaded,
+      !add_query_parameter_to_url(url, url_capacity, "&uploaded=", uploaded,
                                   &position) ||
-      !add_query_parameter_to_url(url, url_length, "&downloaded=", downloaded,
+      !add_query_parameter_to_url(url, url_capacity, "&downloaded=", downloaded,
                                   &position) ||
-      !add_query_parameter_to_url(url, url_length, "&left=", left, &position) ||
-      !add_query_parameter_to_url(url, url_length, "&compact=", compact,
+      !add_query_parameter_to_url(url, url_capacity, "&left=", left,
+                                  &position) ||
+      !add_query_parameter_to_url(url, url_capacity, "&compact=", compact,
                                   &position)) {
 
+    curl_free(info_hash_encoded);
+    curl_free(peer_id_encoded);
+    curl_easy_cleanup(curl);
+    free(url);
+    return NULL;
+  }
+
+  if (position != url_capacity - 1) {
     curl_free(info_hash_encoded);
     curl_free(peer_id_encoded);
     curl_easy_cleanup(curl);
