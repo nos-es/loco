@@ -132,6 +132,32 @@ char *build_tracker_url(const bencode_segment_t *announce,
     compact = "1";
   }
 
+  const char *event_value = "";
+  bool has_event = false;
+
+  switch (request->event) {
+  case TRACKER_EVENT_NONE:
+    break;
+  case TRACKER_EVENT_STARTED:
+    has_event = true;
+    event_value = "started";
+    break;
+  case TRACKER_EVENT_COMPLETED:
+    has_event = true;
+    event_value = "completed";
+    break;
+  case TRACKER_EVENT_STOPPED:
+    has_event = true;
+    event_value = "stopped";
+    break;
+  default:
+    // not supported event value
+    curl_free(info_hash_encoded);
+    curl_free(peer_id_encoded);
+    curl_easy_cleanup(curl);
+    return NULL;
+  }
+
   size_t announce_len = announce->length;
   size_t info_hash_encoded_len = strlen(info_hash_encoded);
   size_t peer_id_encoded_len = strlen(peer_id_encoded);
@@ -139,10 +165,20 @@ char *build_tracker_url(const bencode_segment_t *announce,
   size_t uploaded_len = strlen(uploaded);
   size_t downloaded_len = strlen(downloaded);
   size_t left_len = strlen(left);
-  size_t static_text_len = strlen(
-      "?info_hash=&peer_id=&port=&uploaded=&downloaded=&left=&compact=1");
+  size_t event_len = strlen(event_value);
 
   size_t url_capacity = 1;
+
+  const char *static_text =
+      "?info_hash=&peer_id=&port=&uploaded=&downloaded=&left=&compact=1";
+
+  if (has_event) {
+    static_text = "?info_hash=&peer_id=&port=&uploaded=&downloaded=&left=&"
+                  "compact=1&event=";
+  }
+
+  size_t static_text_len = strlen(static_text);
+
   if (!safely_increased_url_length(&url_capacity, announce_len) ||
       !safely_increased_url_length(&url_capacity, info_hash_encoded_len) ||
       !safely_increased_url_length(&url_capacity, peer_id_encoded_len) ||
@@ -150,7 +186,8 @@ char *build_tracker_url(const bencode_segment_t *announce,
       !safely_increased_url_length(&url_capacity, uploaded_len) ||
       !safely_increased_url_length(&url_capacity, downloaded_len) ||
       !safely_increased_url_length(&url_capacity, left_len) ||
-      !safely_increased_url_length(&url_capacity, static_text_len)) {
+      !safely_increased_url_length(&url_capacity, static_text_len) ||
+      !safely_increased_url_length(&url_capacity, event_len)) {
 
     curl_free(info_hash_encoded);
     curl_free(peer_id_encoded);
@@ -206,6 +243,15 @@ char *build_tracker_url(const bencode_segment_t *announce,
       !add_query_parameter_to_url(url, url_capacity, "&compact=", compact,
                                   &position)) {
 
+    curl_free(info_hash_encoded);
+    curl_free(peer_id_encoded);
+    curl_easy_cleanup(curl);
+    free(url);
+    return NULL;
+  }
+
+  if (has_event && !add_query_parameter_to_url(
+                       url, url_capacity, "&event=", event_value, &position)) {
     curl_free(info_hash_encoded);
     curl_free(peer_id_encoded);
     curl_easy_cleanup(curl);
