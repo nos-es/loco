@@ -10,6 +10,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
+                                              size_t nmemb,
+                                              void *tracker_response_buffer) {
+  size_t chunk_size = size * nmemb;
+  tracker_response_buffer_t *response_buffer =
+      (tracker_response_buffer_t *)tracker_response_buffer;
+
+  if (response_buffer->length > (SIZE_MAX - chunk_size)) {
+
+    return 0;
+  }
+  size_t new_buffer_length = response_buffer->length + chunk_size;
+}
+
 static bool add_query_parameter_to_url(char *url, size_t capacity,
                                        const char *parameter_prefix,
                                        const char *parameter_value,
