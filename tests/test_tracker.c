@@ -200,6 +200,46 @@ test_write_chunks_to_tracker_response_buffer_rejects_null_response(
 
   return MUNIT_OK;
 }
+
+static MunitResult
+test_tracker_announce_writes_bencode_in_tracker_response_buffer(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+  const unsigned char announce_url[] = "http://127.0.0.1:8000/announce";
+  const bencode_segment_t announce = {.data = announce_url,
+                                      .length = sizeof(announce_url) - 1};
+
+  const tracker_request_t tracker_req = {
+      .info_hash = {.bytes = {0x00, 0x01, 0x20, 0x25, 0x2f, 0x3f, 0x41,
+                              0x5a, 0x61, 0x7a, 0x7f, 0x80, 0xa9, 0xff,
+                              0x10, 0x2d, 0x5f, 0x2e, 0x7e, 0x30}},
+      .peer_id = {.bytes = {'-',  'L',  'O',  '0',  '0',  '0',  '1',
+                            '-',  0x00, 0x01, 0x20, 0x25, 0x2f, 0x3f,
+                            0x41, 0x7a, 0x80, 0xa9, 0xff, 0x5f}},
+      .port = 1234,
+      .uploaded = 0,
+      .downloaded = 0,
+      .left = 100,
+      .compact = true,
+      .event = TRACKER_EVENT_STARTED};
+  tracker_response_buffer_t response = {.data = NULL, .length = 0};
+
+  bool announced = tracker_announce(&announce, &tracker_req, &response);
+
+  munit_assert_true(announced);
+
+  const char expected_response[] = "d8:intervali1800e5:peers0:e";
+  const size_t expected_response_size = sizeof(expected_response) - 1;
+  munit_assert_memory_equal(expected_response_size, expected_response,
+                            response.data);
+  munit_assert_size(expected_response_size, ==, response.length);
+
+  free(response.data);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/build_tracker_url/returns-correct-url",
      test_build_tracker_url_returns_correct_url, NULL, NULL,
@@ -218,6 +258,9 @@ static MunitTest tests[] = {
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/write_chunks/rejects-null-response",
      test_write_chunks_to_tracker_response_buffer_rejects_null_response, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/announce_tracker/returns-response",
+     test_tracker_announce_writes_bencode_in_tracker_response_buffer, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
