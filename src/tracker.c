@@ -13,6 +13,10 @@
 size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
                                               size_t nmemb,
                                               void *tracker_response_buffer) {
+  if (tracker_response_buffer == NULL) {
+    return 0;
+  }
+
   size_t chunk_size = size * nmemb;
   tracker_response_buffer_t *response_buffer =
       (tracker_response_buffer_t *)tracker_response_buffer;
@@ -21,7 +25,21 @@ size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
 
     return 0;
   }
+
   size_t new_buffer_length = response_buffer->length + chunk_size;
+
+  unsigned char *temp_buffer =
+      realloc(response_buffer->data, new_buffer_length);
+
+  if (temp_buffer == NULL) {
+    return 0;
+  }
+  response_buffer->data = temp_buffer;
+
+  memcpy(response_buffer->data + response_buffer->length, chunk, chunk_size);
+  response_buffer->length = new_buffer_length;
+
+  return chunk_size;
 }
 
 static bool add_query_parameter_to_url(char *url, size_t capacity,
