@@ -35,3 +35,7 @@ char *build_tracker_url(const bencode_segment_t *announce,
 size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
                                               size_t nmemb,
                                               void *tracker_response_buffer);
+
+bool tracker_announce(const bencode_segment_t *announce,
+                      const tracker_request_t *request,
+                      tracker_response_buffer_t *out_response);
