@@ -2,6 +2,8 @@
 #include "info_hash.h"
 #include "peer_id.h"
 #include <curl/curl.h>
+#include <curl/easy.h>
+#include <curl/typecheck-gcc.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -10,6 +12,67 @@
 #include <stdlib.h>
 #include <string.h>
 
+bool tracker_announce(const bencode_segment_t *announce,
+                      const tracker_request_t *request,
+                      tracker_response_buffer_t *out_response) {
+
+  if (announce == NULL || request == NULL || out_response == NULL) {
+    return false;
+  }
+
+  CURL *curl = curl_easy_init();
+  tracker_response_buffer_t temp_response = {.data = NULL, .length = 0};
+
+  if (curl == NULL) {
+    return false;
+  }
+
+  CURLcode write_function_code = curl_easy_setopt(
+      curl, CURLOPT_WRITEFUNCTION, write_chunk_to_tracker_response_buffer);
+
+  if (write_function_code != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    return false;
+  }
+
+  CURLcode write_data_code =
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &temp_response);
+
+  if (write_data_code != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    return false;
+  }
+  char *tracker_url = build_tracker_url(announce, request);
+
+  if (tracker_url == NULL) {
+    curl_easy_cleanup(curl);
+    return false;
+  }
+
+  CURLcode set_url_code = curl_easy_setopt(curl, CURLOPT_URL, tracker_url);
+
+  if (set_url_code != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    free(tracker_url);
+    return false;
+  }
+  // free, since after sucessfully set CURLOPT_URL, not needed.
+  free(tracker_url);
+
+  CURLcode easy_perform_code = curl_easy_perform(curl);
+
+  if (easy_perform_code != CURLE_OK) {
+    curl_easy_cleanup(curl);
+    free(temp_response.data);
+    return false;
+  }
+
+  // TODO: Handle http status code.
+
+  *out_response = temp_response;
+  curl_easy_cleanup(curl);
+  return true;
+}
 size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
                                               size_t nmemb,
                                               void *tracker_response_buffer) {
