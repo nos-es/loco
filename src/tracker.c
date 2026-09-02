@@ -67,6 +67,15 @@ bool tracker_announce(const bencode_segment_t *announce,
     return false;
   }
 
+  long status_code = 0;
+  CURLcode info_code = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+
+  if (info_code != CURLE_OK || status_code != 200) {
+    curl_easy_cleanup(curl);
+    free(temp_response.data);
+    return false;
+  }
+
   // TODO: Handle http status code.
 
   *out_response = temp_response;
