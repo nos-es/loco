@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 static MunitResult
 test_build_tracker_url_returns_correct_url(const MunitParameter params[],
@@ -146,6 +145,62 @@ test_build_tracker_url_rejects_unsupported_event(const MunitParameter params[],
 
   return MUNIT_OK;
 }
+static MunitResult
+test_write_chunks_to_tracker_response_buffer_writes_chunks_correctly(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  tracker_response_buffer_t response = {.data = NULL, .length = 0};
+
+  // First chunk
+  size_t written_bytes =
+      write_chunk_to_tracker_response_buffer("abc", 1, 3, &response);
+
+  munit_assert_size(written_bytes, ==, 3);
+  munit_assert_size(response.length, ==, 3);
+
+  // Second chunk
+  unsigned char chunk[] = {0x00, 0xff};
+
+  written_bytes =
+      write_chunk_to_tracker_response_buffer((char *)chunk, 1, 2, &response);
+
+  munit_assert_size(written_bytes, ==, 2);
+  munit_assert_size(response.length, ==, 5);
+
+  // Third chunk
+  written_bytes =
+      write_chunk_to_tracker_response_buffer("xyz", 1, 3, &response);
+
+  munit_assert_size(written_bytes, ==, 3);
+  munit_assert_size(response.length, ==, 8);
+
+  const unsigned char expected[] = {'a', 'b', 'c', 0x00, 0xff, 'x', 'y', 'z'};
+
+  munit_assert_memory_equal(sizeof(expected), expected, response.data);
+
+  free(response.data);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_write_chunks_to_tracker_response_buffer_rejects_null_response(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  // First chunk
+  size_t written_bytes =
+      write_chunk_to_tracker_response_buffer("abc", 1, 3, NULL);
+
+  munit_assert_size(written_bytes, ==, 0);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/build_tracker_url/returns-correct-url",
      test_build_tracker_url_returns_correct_url, NULL, NULL,
@@ -159,6 +214,12 @@ static MunitTest tests[] = {
     {"/build_tracker_url/rejects-unsupported-event",
      test_build_tracker_url_rejects_unsupported_event, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/write_chunks/writes-chunks-correctly",
+     test_write_chunks_to_tracker_response_buffer_writes_chunks_correctly, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/write_chunks/rejects-null-response",
+     test_write_chunks_to_tracker_response_buffer_rejects_null_response, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
