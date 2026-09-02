@@ -193,7 +193,6 @@ test_write_chunks_to_tracker_response_buffer_rejects_null_response(
   (void)params;
   (void)user_data;
 
-  // First chunk
   size_t written_bytes =
       write_chunk_to_tracker_response_buffer("abc", 1, 3, NULL);
 
