@@ -1,4 +1,7 @@
 #include "tracker.h"
+#include "bencode_parser.h"
+#include "bencode_types.h"
+#include "file_reader.h"
 #include "info_hash.h"
 #include "peer_id.h"
 #include <curl/curl.h>
@@ -68,7 +71,8 @@ bool tracker_announce(const bencode_segment_t *announce,
   }
 
   long status_code = 0;
-  CURLcode info_code = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+  CURLcode info_code =
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
 
   if (info_code != CURLE_OK || status_code != 200) {
     curl_easy_cleanup(curl);
@@ -378,4 +382,40 @@ char *build_tracker_url(const bencode_segment_t *announce,
   curl_easy_cleanup(curl);
 
   return url;
+}
+
+bool tracker_response_parse(const tracker_response_buffer_t *response,
+                            bencode_object_t *out_parsed_obj) {
+
+  if (response == NULL || out_parsed_obj == NULL) {
+    return false;
+  }
+
+  parser_state_t parser;
+  bool parse_result =
+      bencode_parser_init(&parser, response->data, response->length);
+
+  if (!parse_result) {
+    return false;
+  }
+  bencode_object_t obj = {.type = INVALID};
+
+  bool is_parsed = parse_bencode_buffer(&parser, &obj);
+
+  if (!is_parsed) {
+    return false;
+  }
+
+  if (parser.position != response->length) {
+    free_bencode_object(&obj);
+    return false;
+  }
+
+  if (obj.type != DICTIONARY) {
+    free_bencode_object(&obj);
+    return false;
+  }
+
+  *out_parsed_obj = obj;
+  return true;
 }
