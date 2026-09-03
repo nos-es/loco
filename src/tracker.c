@@ -1,7 +1,6 @@
 #include "tracker.h"
 #include "bencode_parser.h"
 #include "bencode_types.h"
-#include "file_reader.h"
 #include "info_hash.h"
 #include "peer_id.h"
 #include <curl/curl.h>
