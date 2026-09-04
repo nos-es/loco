@@ -1,3 +1,4 @@
+#include "bencode_parser.h"
 #include "bencode_types.h"
 #include "munit.h"
 #include "tracker.h"
@@ -240,6 +241,149 @@ test_tracker_announce_writes_bencode_in_tracker_response_buffer(
 
   return MUNIT_OK;
 }
+
+static MunitResult test_tracker_response_parse_parses_response_correctly(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peers0:e";
+  const unsigned char interval_key[] = "interval";
+  const size_t interval_key_len = sizeof(interval_key) - 1;
+  const unsigned char peers_key[] = "peers";
+  const size_t peers_key_len = sizeof(peers_key) - 1;
+  int64_t interval_value = 1800;
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_int(parsed_obj.type, ==, DICTIONARY);
+  munit_assert_size(parsed_obj.value.dictionary.count, ==, 2);
+  munit_assert_true(parsed_obj.value.dictionary.capacity >=
+                    parsed_obj.value.dictionary.count);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
+                   INTEGER);
+  munit_assert_memory_equal(interval_key_len, interval_key,
+                            parsed_obj.value.dictionary.entries[0].key.data);
+  munit_assert_size(interval_key_len, ==,
+                    parsed_obj.value.dictionary.entries[0].key.length);
+  munit_assert_int64(
+      interval_value, ==,
+      parsed_obj.value.dictionary.entries[0].value.value.integer);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[1].value.type, ==,
+                   BYTE_STRING);
+  munit_assert_memory_equal(peers_key_len, peers_key,
+                            parsed_obj.value.dictionary.entries[1].key.data);
+  munit_assert_size(peers_key_len, ==,
+                    parsed_obj.value.dictionary.entries[1].key.length);
+  munit_assert_size(
+      parsed_obj.value.dictionary.entries[1].value.value.byte_string.length, ==,
+      0);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_tracker_response_parse_rejects_null_response(const MunitParameter params[],
+                                                  void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(NULL, &parsed_obj);
+
+  munit_assert_false(parsed);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_tracker_response_parse_rejects_null_bencode_object_output_parameter(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peers0:e";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bool parsed = tracker_response_parse(&response, NULL);
+
+  munit_assert_false(parsed);
+
+  return MUNIT_OK;
+}
+static MunitResult test_tracker_response_parse_rejects_invalid_bencode(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "THIS IS NOT BENCODE";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_false(parsed);
+
+  return MUNIT_OK;
+}
+static MunitResult test_tracker_response_parse_rejects_non_dictionary_root(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "i42e";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_false(parsed);
+
+  return MUNIT_OK;
+}
+static MunitResult test_tracker_response_parse_rejects_additional_bytes(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peers0:eJUNK";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_false(parsed);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/build_tracker_url/returns-correct-url",
      test_build_tracker_url_returns_correct_url, NULL, NULL,
@@ -262,6 +406,24 @@ static MunitTest tests[] = {
     {"/announce_tracker/returns-response",
      test_tracker_announce_writes_bencode_in_tracker_response_buffer, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse_response/returns-parsed-response",
+     test_tracker_response_parse_parses_response_correctly, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse_response/rejects-null-response",
+     test_tracker_response_parse_rejects_null_response, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse_response/rejects-null-out-parameter",
+     test_tracker_response_parse_rejects_null_bencode_object_output_parameter,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse_response/rejects-invalid-bencode",
+     test_tracker_response_parse_rejects_invalid_bencode, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse_response/rejects-non-dictionary-root",
+     test_tracker_response_parse_rejects_non_dictionary_root, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse_response/rejects-additional-bytes",
+     test_tracker_response_parse_rejects_additional_bytes, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
