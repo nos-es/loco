@@ -39,3 +39,6 @@ size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
 bool tracker_announce(const bencode_segment_t *announce,
                       const tracker_request_t *request,
                       tracker_response_buffer_t *out_response);
+
+bool tracker_response_parse(const tracker_response_buffer_t *response,
+                            bencode_object_t *out_parsed_obj);
