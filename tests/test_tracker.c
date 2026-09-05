@@ -384,6 +384,123 @@ static MunitResult test_tracker_response_parse_rejects_additional_bytes(
 
   return MUNIT_OK;
 }
+
+static MunitResult
+test_find_interval_returns_interval(const MunitParameter params[],
+                                    void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peers0:e";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+
+  int64_t interval = -1;
+  int64_t expected_interval = 1800;
+  bool found_interval = find_interval(&parsed_obj, &interval);
+  munit_assert_true(found_interval);
+  munit_assert_int64(expected_interval, ==, interval);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_find_interval_rejects_missing_key(const MunitParameter params[],
+                                       void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d5:peers0:e";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+
+  int64_t interval = -1;
+  int64_t expected_interval = -1;
+  bool found_interval = find_interval(&parsed_obj, &interval);
+  munit_assert_false(found_interval);
+  munit_assert_int64(expected_interval, ==, interval);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_find_interval_rejects_wrong_value_type(const MunitParameter params[],
+                                            void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:interval4:18005:peers0:e";
+  unsigned char interval_key[] = "interval";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+  munit_assert_memory_equal(sizeof(interval_key) - 1, interval_key,
+                            parsed_obj.value.dictionary.entries[0].key.data);
+
+  munit_assert_int(parsed_obj.value.dictionary.entries[0].value.type, ==,
+                   BYTE_STRING);
+
+  int64_t interval = -1;
+  int64_t expected_interval = -1;
+  bool found_interval = find_interval(&parsed_obj, &interval);
+  munit_assert_false(found_interval);
+  munit_assert_int64(expected_interval, ==, interval);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+static MunitResult
+test_find_interval_rejects_null_out_parameter(const MunitParameter params[],
+                                              void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peers0:e";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+  bool found_interval = find_interval(&parsed_obj, NULL);
+  munit_assert_false(found_interval);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/build_tracker_url/returns-correct-url",
      test_build_tracker_url_returns_correct_url, NULL, NULL,
@@ -423,6 +540,17 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse_response/rejects-additional-bytes",
      test_tracker_response_parse_rejects_additional_bytes, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_interval/retuns-interval", test_find_interval_returns_interval,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_interval/rejects-missing-key",
+     test_find_interval_rejects_missing_key, NULL, NULL, MUNIT_TEST_OPTION_NONE,
+     NULL},
+    {"/find_interval/rejects-wrong-value-type",
+     test_find_interval_rejects_wrong_value_type, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_interval/rejects-null-output-parameter",
+     test_find_interval_rejects_null_out_parameter, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
