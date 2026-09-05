@@ -42,3 +42,8 @@ bool tracker_announce(const bencode_segment_t *announce,
 
 bool tracker_response_parse(const tracker_response_buffer_t *response,
                             bencode_object_t *out_parsed_obj);
+
+bool find_interval(const bencode_object_t *response_obj, int64_t *out_interval);
+
+bool find_peers(const bencode_object_t *response_obj,
+                bencode_segment_t *out_peers);
