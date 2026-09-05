@@ -14,6 +14,75 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const unsigned char interval_key[] = "interval";
+static const unsigned char peers_key[] = "peers";
+
+static const bencode_object_t *
+find_entry_in_dictionary(const bencode_object_t *root,
+                         const unsigned char *key_name, size_t key_length,
+                         bencode_data_type_t target_type) {
+  if (root == NULL) {
+    return NULL;
+  }
+  if (root->type != DICTIONARY) {
+    return NULL;
+  }
+  for (size_t i = 0; i < root->value.dictionary.count; i++) {
+
+    const bencode_dictionary_entry_t *current_entry =
+        &root->value.dictionary.entries[i];
+
+    if (current_entry->key.length != key_length) {
+      continue;
+    }
+
+    int compare_result =
+        memcmp(current_entry->key.data, key_name, current_entry->key.length);
+    if (compare_result != 0) {
+      continue;
+    }
+
+    if (current_entry->value.type != target_type) {
+      continue;
+    }
+
+    return &current_entry->value;
+  }
+  return NULL;
+}
+
+bool find_interval(const bencode_object_t *response_obj,
+                   int64_t *out_interval) {
+  if (out_interval == NULL) {
+    return false;
+  }
+
+  const bencode_object_t *entry = find_entry_in_dictionary(
+      response_obj, interval_key, sizeof(interval_key) - 1, INTEGER);
+
+  if (entry == NULL) {
+    return false;
+  }
+  *out_interval = entry->value.integer;
+  return true;
+}
+
+bool find_peers(const bencode_object_t *response_obj,
+                bencode_segment_t *out_peers) {
+  if (out_peers == NULL) {
+    return false;
+  }
+
+  const bencode_object_t *entry = find_entry_in_dictionary(
+      response_obj, peers_key, sizeof(peers_key) - 1, BYTE_STRING);
+
+  if (entry == NULL) {
+    return false;
+  }
+  *out_peers = entry->value.byte_string;
+  return true;
+}
+
 bool tracker_announce(const bencode_segment_t *announce,
                       const tracker_request_t *request,
                       tracker_response_buffer_t *out_response) {
