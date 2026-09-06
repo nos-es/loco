@@ -9,4 +9,4 @@ typedef struct InfoHash {
 } info_hash_t;
 
 bool compute_info_hash(const unsigned char *bytes, size_t length,
-                        info_hash_t *out_info_hash);
+                       info_hash_t *out_info_hash);
