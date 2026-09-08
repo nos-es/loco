@@ -502,6 +502,40 @@ test_find_interval_rejects_null_out_parameter(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+static MunitResult test_find_peers_returns_peers(const MunitParameter params[],
+                                                 void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peers6:"
+                                  "\x7f\x00\x00\x01\x1a\xe1"
+                                  "e";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+
+  bencode_segment_t peers = {0};
+
+  bool found_peers = find_peers(&parsed_obj, &peers);
+  munit_assert_true(found_peers);
+
+  const unsigned char expected_bytes[] = "\x7f\x00\x00\x01\x1a\xe1";
+  munit_assert_size(peers.length, ==, sizeof(expected_bytes) - 1);
+  munit_assert_memory_equal(sizeof(expected_bytes) - 1, expected_bytes,
+                            peers.data);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
 static MunitResult
 test_find_peers_rejects_null_out_parameter(const MunitParameter params[],
                                            void *user_data) {
@@ -521,6 +555,63 @@ test_find_peers_rejects_null_out_parameter(const MunitParameter params[],
   munit_assert_true(parsed);
   bool found_peers = find_peers(&parsed_obj, NULL);
   munit_assert_false(found_peers);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_find_peers_rejects_wrong_value_type(const MunitParameter params[],
+                                         void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800e5:peersi42ee";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+
+  size_t length_not_changed_value = 42;
+  bencode_segment_t peers = {.data = NULL, .length = length_not_changed_value};
+  bool found_peers = find_peers(&parsed_obj, &peers);
+  munit_assert_false(found_peers);
+  munit_assert_size(length_not_changed_value, ==, peers.length);
+
+  free_bencode_object(&parsed_obj);
+
+  return MUNIT_OK;
+}
+static MunitResult
+test_find_peers_rejects_missing_key(const MunitParameter params[],
+                                    void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char response_data[] = "d8:intervali1800ee";
+  const size_t response_length = sizeof(response_data) - 1;
+  const tracker_response_buffer_t response = {.data = response_data,
+                                              .length = response_length};
+
+  bencode_object_t parsed_obj = {.type = INVALID};
+
+  bool parsed = tracker_response_parse(&response, &parsed_obj);
+
+  munit_assert_true(parsed);
+
+  size_t length_not_changed_value = 42;
+  bencode_segment_t peers = {.data = NULL, .length = length_not_changed_value};
+  bool found_peers = find_peers(&parsed_obj, &peers);
+  munit_assert_false(found_peers);
+  munit_assert_size(length_not_changed_value, ==, peers.length);
 
   free_bencode_object(&parsed_obj);
 
@@ -577,9 +668,16 @@ static MunitTest tests[] = {
     {"/find_interval/rejects-null-output-parameter",
      test_find_interval_rejects_null_out_parameter, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_peers/returns-peers-bytes", test_find_peers_returns_peers, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_peers/rejects-wrong-value-type",
+     test_find_peers_rejects_wrong_value_type, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {"/find_peers/rejects-null-output-parameter",
      test_find_peers_rejects_null_out_parameter, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/find_peers/rejects-missing_key", test_find_peers_rejects_missing_key,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
