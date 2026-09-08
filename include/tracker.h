@@ -6,6 +6,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+enum {
+  PEER_IP_LENGTH = 4,
+};
+typedef struct Peer {
+  uint8_t ipv4_address[PEER_IP_LENGTH];
+  uint16_t port;
+} peer_t;
+
 enum tracker_event {
   TRACKER_EVENT_NONE,
   TRACKER_EVENT_STARTED,
