@@ -67,6 +67,18 @@ bool find_interval(const bencode_object_t *response_obj,
   return true;
 }
 
+static bool is_valid_peers_ipv4_list(const bencode_segment_t *peers_segment) {
+
+  if (peers_segment == NULL) {
+    return false;
+  }
+
+  if (peers_segment->length % 6 != 0) {
+    return false;
+  }
+  return true;
+}
+
 bool find_peers(const bencode_object_t *response_obj,
                 bencode_segment_t *out_peers) {
   if (out_peers == NULL) {
@@ -147,8 +159,6 @@ bool tracker_announce(const bencode_segment_t *announce,
     free(temp_response.data);
     return false;
   }
-
-  // TODO: Handle http status code.
 
   *out_response = temp_response;
   curl_easy_cleanup(curl);
