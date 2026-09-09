@@ -3,7 +3,9 @@
 #include "cli.h"
 #include "file_reader.h"
 #include "info_hash.h"
+#include "peer_id.h"
 #include "torrent_metadata.h"
+#include "tracker.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,23 +46,20 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  torrent_info_t torrent_info = {.name = {.data = NULL, .length = 0},
-                                 .length = 0,
-                                 .piece_length = 0,
-                                 .pieces = {.data = NULL, .length = 0},
-                                 .info_span = {.start_offset = 0, .length = 0}};
+  torrent_metadata_t torrent_metadata = {0};
 
-  bool info_extracted = torrent_metadata_extract_info(&obj, &torrent_info);
+  bool metadata_extracted = torrent_metadata_extract(&obj, &torrent_metadata);
 
-  if (!info_extracted) {
-    fprintf(stderr, "Failed to extract info.\n");
+  if (!metadata_extracted) {
+    fprintf(stderr, "Failed to extract torrent metadata.\n");
     free_bencode_object(&obj);
     free_buffer(&buffer);
     return 1;
   }
   info_hash_t info_hash = {.bytes = {0}};
+  torrent_info_t *torrent_info = &torrent_metadata.info;
 
-  if (torrent_info.info_span.start_offset > buffer.length) {
+  if (torrent_info->info_span.start_offset > buffer.length) {
 
     fprintf(stderr, "Info start offset greater than buffer length.\n");
     free_bencode_object(&obj);
@@ -68,8 +67,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (torrent_info.info_span.length >
-      buffer.length - torrent_info.info_span.start_offset) {
+  if (torrent_info->info_span.length >
+      buffer.length - torrent_info->info_span.start_offset) {
     fprintf(stderr, "buffer length exceeded.\n");
     free_bencode_object(&obj);
     free_buffer(&buffer);
@@ -77,8 +76,8 @@ int main(int argc, char *argv[]) {
   }
 
   bool computed =
-      compute_info_hash(&buffer.data[torrent_info.info_span.start_offset],
-                        torrent_info.info_span.length, &info_hash);
+      compute_info_hash(&buffer.data[torrent_info->info_span.start_offset],
+                        torrent_info->info_span.length, &info_hash);
   if (!computed) {
     fprintf(stderr, "Failed to compute info hash.\n");
     free_bencode_object(&obj);
@@ -86,13 +85,38 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  for (size_t i = 0; i < INFO_HASH_LENGTH; i++) {
-    printf("%02x", (unsigned int)info_hash.bytes[i]);
+  peer_id_t peer_id = {0};
+
+  bool peer_id_generated = generate_peer_id(&peer_id);
+  if (!peer_id_generated) {
+    fprintf(stderr, "Failed to generate peer id.\n");
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
   }
 
-  fputc('\n', stdout);
+  tracker_request_t tracker_request = {.info_hash = info_hash,
+                                       .peer_id = peer_id,
+                                       .port = 0,
+                                       .uploaded = 0,
+                                       .downloaded = 0,
+                                       .left = torrent_metadata.info.length,
+                                       .compact = true,
+                                       .event = TRACKER_EVENT_STARTED};
 
+  tracker_response_buffer_t tracker_response = {0};
+  bool announced = tracker_announce(&torrent_metadata.announce,
+                                    &tracker_request, &tracker_response);
+  if (!announced) {
+    fprintf(stderr, "Failed to announce to tracker.\n");
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  printf("Tracker response length: %zu bytes\n", tracker_response.length);
   // free buffer when program ends.
+  free(tracker_response.data);
   free_bencode_object(&obj);
   free_buffer(&buffer);
 
