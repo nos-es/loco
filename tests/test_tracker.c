@@ -623,7 +623,7 @@ test_parse_peer_from_segment_returns_peer(const MunitParameter params[],
 
   (void)params;
   (void)user_data;
-  // 7F 00 00 01 1A E1
+
   unsigned char input[] = "\x7f\x00\x00\x01\x1a\xe1";
   size_t input_len = sizeof(input) - 1;
 
@@ -638,6 +638,44 @@ test_parse_peer_from_segment_returns_peer(const MunitParameter params[],
 
   munit_assert_uint16(expected_port, ==, peer.port);
   munit_assert_memory_equal(PEER_IP_LENGTH, expected_ip, peer.ipv4_address);
+
+  return MUNIT_OK;
+}
+static MunitResult test_parse_peer_from_segment_rejects_null_parameter(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  unsigned char input[] = "\x7f\x00\x00\x01\x1a\xe1";
+  size_t input_len = sizeof(input) - 1;
+
+  const bencode_segment_t segment = {.data = input, .length = input_len};
+
+  bool parsed = parse_peer_from_segment(&segment, NULL);
+
+  munit_assert_false(parsed);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_parse_peer_from_segment_rejects_segment_length_not_6(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char input[] = "\x7f\x00\x00\x01";
+  size_t input_len = sizeof(input) - 1;
+
+  const bencode_segment_t segment = {.data = input, .length = input_len};
+  uint16_t initial_port = 123;
+  peer_t peer = {.port = initial_port};
+
+  bool parsed = parse_peer_from_segment(&segment, &peer);
+
+  munit_assert_false(parsed);
+
+  munit_assert_uint16(initial_port, ==, peer.port);
 
   return MUNIT_OK;
 }
@@ -704,6 +742,12 @@ static MunitTest tests[] = {
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/parse-peer/returns-peer", test_parse_peer_from_segment_returns_peer,
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse-peer/rejects-null-out-parameter",
+     test_parse_peer_from_segment_rejects_null_parameter, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse-peer/rejects-segment-length-not-6",
+     test_parse_peer_from_segment_rejects_segment_length_not_6, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
