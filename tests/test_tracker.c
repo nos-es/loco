@@ -617,6 +617,30 @@ test_find_peers_rejects_missing_key(const MunitParameter params[],
 
   return MUNIT_OK;
 }
+static MunitResult
+test_parse_peer_from_segment_returns_peer(const MunitParameter params[],
+                                          void *user_data) {
+
+  (void)params;
+  (void)user_data;
+  // 7F 00 00 01 1A E1
+  unsigned char input[] = "\x7f\x00\x00\x01\x1a\xe1";
+  size_t input_len = sizeof(input) - 1;
+
+  const bencode_segment_t segment = {.data = input, .length = input_len};
+  peer_t peer = {.port = 123};
+
+  bool parsed = parse_peer_from_segment(&segment, &peer);
+
+  munit_assert_true(parsed);
+  uint8_t expected_ip[] = {127, 0, 0, 1};
+  uint16_t expected_port = 6881;
+
+  munit_assert_uint16(expected_port, ==, peer.port);
+  munit_assert_memory_equal(PEER_IP_LENGTH, expected_ip, peer.ipv4_address);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/build_tracker_url/returns-correct-url",
      test_build_tracker_url_returns_correct_url, NULL, NULL,
@@ -677,6 +701,8 @@ static MunitTest tests[] = {
      test_find_peers_rejects_null_out_parameter, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/find_peers/rejects-missing_key", test_find_peers_rejects_missing_key,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/parse-peer/returns-peer", test_parse_peer_from_segment_returns_peer,
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
