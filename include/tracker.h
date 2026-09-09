@@ -8,6 +8,7 @@
 
 enum {
   PEER_IP_LENGTH = 4,
+  PEER_SEGMENT_LENGTH = 6,
 };
 typedef struct Peer {
   uint8_t ipv4_address[PEER_IP_LENGTH];
@@ -47,6 +48,8 @@ size_t write_chunk_to_tracker_response_buffer(char *chunk, size_t size,
 bool tracker_announce(const bencode_segment_t *announce,
                       const tracker_request_t *request,
                       tracker_response_buffer_t *out_response);
+
+bool parse_peer_from_segment(const bencode_segment_t *peer_segment, peer_t *out_peer);
 
 bool tracker_response_parse(const tracker_response_buffer_t *response,
                             bencode_object_t *out_parsed_obj);
