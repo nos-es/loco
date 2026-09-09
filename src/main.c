@@ -6,7 +6,9 @@
 #include "peer_id.h"
 #include "torrent_metadata.h"
 #include "tracker.h"
+#include <inttypes.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -115,7 +117,51 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Tracker response length: %zu bytes\n", tracker_response.length);
+
+  bencode_object_t response_obj = {.type = INVALID};
+
+  bool response_parsed =
+      tracker_response_parse(&tracker_response, &response_obj);
+
+  if (!response_parsed) {
+    fprintf(stderr, "Failed to parse tracker response.\n");
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  int64_t interval = 0;
+  bool interval_found = find_interval(&response_obj, &interval);
+
+  if (!interval_found) {
+    fprintf(stderr, "Interval not found.\n");
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+  printf("Interval: "
+         "%" PRId64 "\n",
+         interval);
+
+  bencode_segment_t peers_segment = {0};
+  bool peers_found = find_peers(&response_obj, &peers_segment);
+
+  if (!peers_found) {
+    fprintf(stderr, "Peers not found.\n");
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  printf("Peers length: %zu bytes\n", peers_segment.length);
+
   // free buffer when program ends.
+  free_bencode_object(&response_obj);
   free(tracker_response.data);
   free_bencode_object(&obj);
   free_buffer(&buffer);
