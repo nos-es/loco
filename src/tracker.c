@@ -17,6 +17,28 @@
 static const unsigned char interval_key[] = "interval";
 static const unsigned char peers_key[] = "peers";
 
+bool parse_peer_from_segment(const bencode_segment_t *peer_segment,
+                             peer_t *out_peer) {
+
+  if (peer_segment == NULL || out_peer == NULL) {
+    return false;
+  }
+  if (peer_segment->data == NULL ||
+      peer_segment->length != PEER_SEGMENT_LENGTH) {
+    return false;
+  }
+
+  peer_t temp_peer = {0};
+  memcpy(temp_peer.ipv4_address, peer_segment->data, PEER_IP_LENGTH);
+  uint16_t high = (uint16_t)peer_segment->data[4];
+  uint16_t low = (uint16_t)peer_segment->data[5];
+  uint16_t temp_port = (high << 8) | low;
+  temp_peer.port = temp_port;
+
+  *out_peer = temp_peer;
+  return true;
+}
+
 static const bencode_object_t *
 find_entry_in_dictionary(const bencode_object_t *root,
                          const unsigned char *key_name, size_t key_length,
