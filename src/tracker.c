@@ -17,6 +17,74 @@
 static const unsigned char interval_key[] = "interval";
 static const unsigned char peers_key[] = "peers";
 
+static bool is_valid_peers_ipv4_list(const bencode_segment_t *peers_segment) {
+
+  if (peers_segment == NULL) {
+    return false;
+  }
+
+  if (peers_segment->length % PEER_SEGMENT_LENGTH != 0) {
+    return false;
+  }
+
+  if (peers_segment->length > 0 && peers_segment->data == NULL) {
+    return false;
+  }
+
+  return true;
+}
+
+bool peers_extract(const bencode_segment_t *peers_segment, peer_t **out_peers,
+                   size_t *out_peer_count) {
+
+  if (peers_segment == NULL || out_peers == NULL || out_peer_count == NULL) {
+    return false;
+  }
+
+  if (!is_valid_peers_ipv4_list(peers_segment)) {
+    return false;
+  }
+  size_t peer_count = peers_segment->length / PEER_SEGMENT_LENGTH;
+
+  // Currently no peers.
+  if (peer_count == 0) {
+    *out_peer_count = 0;
+    *out_peers = NULL;
+    return true;
+  }
+
+  // size_t overflow check
+  if (peer_count > SIZE_MAX / sizeof(peer_t)) {
+    return false;
+  }
+  peer_t *peers = malloc(peer_count * sizeof(peer_t));
+
+  if (peers == NULL) {
+    return false;
+  }
+
+  for (size_t i = 0; i < peer_count; i++) {
+
+    size_t offset = i * PEER_SEGMENT_LENGTH;
+    peer_t current_peer = {0};
+    bencode_segment_t current_segment = {.data = peers_segment->data + offset,
+                                         .length = PEER_SEGMENT_LENGTH};
+
+    bool parsed_peer = parse_peer_from_segment(&current_segment, &current_peer);
+
+    if (!parsed_peer) {
+      free(peers);
+      return false;
+    }
+    peers[i] = current_peer;
+  }
+
+  *out_peers = peers;
+  *out_peer_count = peer_count;
+
+  return true;
+}
+
 bool parse_peer_from_segment(const bencode_segment_t *peer_segment,
                              peer_t *out_peer) {
 
@@ -86,18 +154,6 @@ bool find_interval(const bencode_object_t *response_obj,
     return false;
   }
   *out_interval = entry->value.integer;
-  return true;
-}
-
-static bool is_valid_peers_ipv4_list(const bencode_segment_t *peers_segment) {
-
-  if (peers_segment == NULL) {
-    return false;
-  }
-
-  if (peers_segment->length % 6 != 0) {
-    return false;
-  }
   return true;
 }
 
