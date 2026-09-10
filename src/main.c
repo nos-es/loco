@@ -3,6 +3,7 @@
 #include "cli.h"
 #include "file_reader.h"
 #include "info_hash.h"
+#include "peer_connection.h"
 #include "peer_id.h"
 #include "torrent_metadata.h"
 #include "tracker.h"
@@ -11,6 +12,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
 
@@ -185,7 +187,36 @@ int main(int argc, char *argv[]) {
     printf("\n");
   }
 
+  if (peer_count == 0) {
+    fprintf(stderr, "No Peers available.\n");
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  int fd = connect_to_peer(&current_peers[0]);
+
+  if (fd < 0) {
+    fprintf(stderr, "Peer connection failed.\n");
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  printf("Connected to Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 ":%" PRIu16 "",
+         current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
+         current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
+         current_peers[0].port);
+  printf("\n");
+
   // free buffer when program ends.
+  close(fd);
   free(current_peers);
   free_bencode_object(&response_obj);
   free(tracker_response.data);
