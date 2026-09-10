@@ -5,13 +5,17 @@ extern const MunitSuite torrent_metadata_suite;
 extern const MunitSuite info_hash_suite;
 extern const MunitSuite peer_id_suite;
 extern const MunitSuite tracker_suite;
+extern const MunitSuite peer_connection_suite;
 
 int main(int argc, char *argv[]) {
 
-  MunitSuite sub_suite[] = {
-      bencode_parser_suite, torrent_metadata_suite,
-      info_hash_suite,      peer_id_suite,
-      tracker_suite,        {NULL, NULL, NULL, 0, MUNIT_SUITE_OPTION_NONE}};
+  MunitSuite sub_suite[] = {bencode_parser_suite,
+                            torrent_metadata_suite,
+                            info_hash_suite,
+                            peer_id_suite,
+                            tracker_suite,
+                            peer_connection_suite,
+                            {NULL, NULL, NULL, 0, MUNIT_SUITE_OPTION_NONE}};
 
   const MunitSuite root_suite = {.prefix = "",
                                  .tests = NULL,
