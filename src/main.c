@@ -160,7 +160,33 @@ int main(int argc, char *argv[]) {
 
   printf("Peers length: %zu bytes\n", peers_segment.length);
 
+  peer_t *current_peers = NULL;
+  size_t peer_count = 0;
+
+  bool peers_extracted =
+      peers_extract(&peers_segment, &current_peers, &peer_count);
+
+  if (!peers_extracted) {
+    fprintf(stderr, "Peers could not be extracted.\n");
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  printf("Peer count: %zu\n", peer_count);
+  for (size_t i = 0; i < peer_count; i++) {
+    printf("\n");
+    printf("Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 ":%" PRIu16 "",
+           current_peers[i].ipv4_address[0], current_peers[i].ipv4_address[1],
+           current_peers[i].ipv4_address[2], current_peers[i].ipv4_address[3],
+           current_peers[i].port);
+    printf("\n");
+  }
+
   // free buffer when program ends.
+  free(current_peers);
   free_bencode_object(&response_obj);
   free(tracker_response.data);
   free_bencode_object(&obj);
