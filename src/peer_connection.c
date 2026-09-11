@@ -1,10 +1,16 @@
+#include "peer_connection.h"
+#include "info_hash.h"
+#include "peer_id.h"
 #include "tracker.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netinet/in.h>
+#include <stddef.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+static const unsigned char handshake_protocol[] = "BitTorrent protocol";
 int connect_to_peer(const peer_t *peer) {
 
   if (peer == NULL) {
@@ -32,4 +38,104 @@ int connect_to_peer(const peer_t *peer) {
   }
 
   return file_descriptor;
+}
+
+static bool build_handshake(const info_hash_t *info_hash,
+                            const peer_id_t *peer_id,
+                            unsigned char *out_handshake_buffer,
+                            size_t handshake_capacity) {
+
+  if (info_hash == NULL || peer_id == NULL || out_handshake_buffer == NULL) {
+    return false;
+  }
+
+  if (handshake_capacity < HANDSHAKE_BYTES_LENGTH) {
+    return false;
+  }
+
+  unsigned char handshake[HANDSHAKE_BYTES_LENGTH] = {0};
+
+  // first byte contain protocol length
+  handshake[0] = BITTORRENT_PROTOCOL_NAME_LENGTH;
+
+  // write protocol name from 1 - 19
+  memcpy(handshake + 1, handshake_protocol, BITTORRENT_PROTOCOL_NAME_LENGTH);
+
+  // bytes 20 - 27 reserved
+
+  // bytes 28 - 47 for info hash.
+  size_t info_hash_offset_start = 28;
+  memcpy(handshake + info_hash_offset_start, info_hash->bytes,
+         INFO_HASH_LENGTH);
+
+  // bytes 48 - 67 for peer_id
+  size_t peer_id_offset_start = 48;
+  memcpy(handshake + peer_id_offset_start, peer_id->bytes, PEER_ID_LENGTH);
+
+  memcpy(out_handshake_buffer, handshake, HANDSHAKE_BYTES_LENGTH);
+
+  return true;
+}
+
+bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
+                         const peer_id_t *peer_id) {
+
+  unsigned char handshake_buffer[HANDSHAKE_BYTES_LENGTH] = {0};
+
+  bool handshake_build = build_handshake(info_hash, peer_id, handshake_buffer,
+                                         HANDSHAKE_BYTES_LENGTH);
+  if (!handshake_build) {
+    return false;
+  }
+
+  size_t send_total = 0;
+  while (send_total < HANDSHAKE_BYTES_LENGTH) {
+
+    // MSG_NOSIGNAL so that SIGPIPE can not end program.
+    ssize_t sent = send(file_descriptor, handshake_buffer + send_total,
+                        HANDSHAKE_BYTES_LENGTH - send_total, MSG_NOSIGNAL);
+
+    if (sent == 0) {
+      return false;
+    }
+
+    // Problem with connection? Or retry?
+    if (sent == -1) {
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      return false;
+    }
+
+    send_total += sent;
+  }
+
+  unsigned char handshake_received_buffer[HANDSHAKE_BYTES_LENGTH] = {0};
+  size_t received_total = 0;
+  while (received_total < HANDSHAKE_BYTES_LENGTH) {
+
+    ssize_t received =
+        recv(file_descriptor, handshake_received_buffer + received_total,
+             HANDSHAKE_BYTES_LENGTH - received_total, 0);
+
+    if (received == 0) {
+      return false;
+    }
+
+    // Problem with connection? Or retry?
+    if (received == -1) {
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      return false;
+    }
+
+    received_total += received;
+  }
+
+  return false;
 }
