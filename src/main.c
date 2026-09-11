@@ -209,7 +209,27 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  printf("Connected to Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 ":%" PRIu16 "",
+  printf("Connected to Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8
+         ":%" PRIu16 "",
+         current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
+         current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
+         current_peers[0].port);
+  printf("\n");
+
+  bool handshake_success = handshake_with_peer(fd, &info_hash, &peer_id);
+
+  if (!handshake_success) {
+    fprintf(stderr, "Handshake failed.\n");
+    close(fd);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+  printf("Handshake with Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8
+         ":%" PRIu16 " successful!\n",
          current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
          current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
          current_peers[0].port);
