@@ -77,6 +77,32 @@ static bool build_handshake(const info_hash_t *info_hash,
   return true;
 }
 
+static bool
+validate_handshake_response(const unsigned char *handshake_response_buffer,
+                            const info_hash_t *info_hash) {
+
+  if (handshake_response_buffer == NULL || info_hash == NULL) {
+    return false;
+  }
+
+  if (handshake_response_buffer[0] != BITTORRENT_PROTOCOL_NAME_LENGTH) {
+    return false;
+  }
+
+  if (memcmp(handshake_response_buffer + 1, handshake_protocol,
+             BITTORRENT_PROTOCOL_NAME_LENGTH) != 0) {
+    return false;
+  }
+
+  size_t info_hash_offset_start = 28;
+  if (memcmp(handshake_response_buffer + info_hash_offset_start,
+             info_hash->bytes, INFO_HASH_LENGTH) != 0) {
+    return false;
+  }
+
+  return true;
+}
+
 bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
                          const peer_id_t *peer_id) {
 
@@ -137,5 +163,9 @@ bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
     received_total += received;
   }
 
-  return false;
+  if (!validate_handshake_response(handshake_received_buffer, info_hash)) {
+    return false;
+  }
+
+  return true;
 }
