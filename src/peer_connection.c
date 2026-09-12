@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -168,4 +169,45 @@ bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
   }
 
   return true;
+}
+
+bool receive_peer_wire_message(int file_descriptor,
+                               peer_wire_message_t *out_message) {
+
+  if (out_message == NULL || file_descriptor < 0) {
+    return false;
+  }
+  size_t received_total = 0;
+  size_t prefix_byte_length = 4;
+  unsigned char prefix_length_buffer[4] = {0};
+  while (received_total < prefix_byte_length) {
+
+    ssize_t received =
+        recv(file_descriptor, prefix_length_buffer + received_total,
+             prefix_byte_length - received_total, 0);
+
+    if (received == 0) {
+      return false;
+    }
+
+    if (received == -1) {
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      return false;
+    }
+
+    received_total += received;
+  }
+  uint32_t first_byte = (uint32_t)prefix_length_buffer[0];
+  uint32_t second_byte = (uint32_t)prefix_length_buffer[1];
+  uint32_t third_byte = (uint32_t)prefix_length_buffer[2];
+  uint32_t fourth_byte = (uint32_t)prefix_length_buffer[3];
+
+  uint32_t prefix_length = (first_byte << 24) | (second_byte << 16) |
+                           (third_byte << 8) | fourth_byte;
+
+  return false;
 }
