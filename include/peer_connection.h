@@ -34,3 +34,6 @@ int connect_to_peer(const peer_t *peer);
 
 bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
                          const peer_id_t *peer_id);
+
+bool receive_peer_wire_message(int file_descriptor,
+                               peer_wire_message_t *out_message);
