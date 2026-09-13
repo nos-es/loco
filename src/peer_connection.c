@@ -1,5 +1,4 @@
 #include "peer_connection.h"
-#include "bencode_types.h"
 #include "info_hash.h"
 #include "peer_id.h"
 #include "tracker.h"
