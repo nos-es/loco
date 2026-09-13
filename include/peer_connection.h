@@ -38,3 +38,5 @@ bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
 
 bool receive_peer_wire_message(int file_descriptor,
                                peer_wire_message_t *out_message);
+
+void free_peer_wire_message(peer_wire_message_t *message);
