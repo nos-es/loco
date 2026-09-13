@@ -1,4 +1,5 @@
 #include "peer_connection.h"
+#include "bencode_types.h"
 #include "info_hash.h"
 #include "peer_id.h"
 #include "tracker.h"
@@ -8,6 +9,7 @@
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -172,12 +174,46 @@ bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
   return true;
 }
 
+static bool is_valid_payload_length_for_message(size_t payload_length,
+                                                enum MessageId message_id) {
+  switch (message_id) {
+
+  case PEER_MESSAGE_CHOKE:
+  case PEER_MESSAGE_UNCHOKE:
+  case PEER_MESSAGE_INTERESTED:
+  case PEER_MESSAGE_NOT_INTERESTED:
+    return payload_length == 0;
+  case PEER_MESSAGE_HAVE:
+    return payload_length == 4;
+  case PEER_MESSAGE_REQUEST:
+  case PEER_MESSAGE_CANCEL:
+    return payload_length == 12;
+  case PEER_MESSAGE_PIECE:
+    // PIECE header with min 8 bytes and max of 16 KiB Block
+    return payload_length >= 8 && payload_length <= 16392;
+  case PEER_MESSAGE_BITFIELD:
+    // BITFIELD has variable payload lengths.
+    // Exact validity is checked later with torrent/download context.
+    return true;
+  case PEER_MESSAGE_INVALID:
+  default:
+    return false;
+  }
+}
+
 bool receive_peer_wire_message(int file_descriptor,
                                peer_wire_message_t *out_message) {
 
   if (out_message == NULL || file_descriptor < 0) {
     return false;
   }
+
+  if (out_message->message_id != PEER_MESSAGE_INVALID ||
+      out_message->is_keep_alive == true || out_message->payload != NULL ||
+      out_message->payload_length != 0) {
+    return false;
+  }
+
   size_t received_total = 0;
   size_t prefix_byte_length = 4;
   unsigned char prefix_length_buffer[4] = {0};
@@ -211,12 +247,12 @@ bool receive_peer_wire_message(int file_descriptor,
   uint32_t prefix_length = (first_byte << 24) | (second_byte << 16) |
                            (third_byte << 8) | fourth_byte;
 
-  peer_wire_message_t temp_msg = {.message_id = PEER_MESSAGE_INVALID};
-
   // Keep-Alive-Message
   if (prefix_length == 0) {
-    temp_msg.is_keep_alive = true;
-    *out_message = temp_msg;
+    out_message->message_id = PEER_MESSAGE_INVALID;
+    out_message->is_keep_alive = true;
+    out_message->payload = NULL;
+    out_message->payload_length = 0;
     return true;
   }
 
@@ -252,5 +288,66 @@ bool receive_peer_wire_message(int file_descriptor,
     return false;
   }
 
-  return false;
+  size_t payload_length = prefix_length - message_id_length;
+  enum MessageId message_id = (enum MessageId)message_id_buffer[0];
+
+  if (payload_length > MAX_PAYLOAD_LENGTH ||
+      !is_valid_payload_length_for_message(payload_length, message_id)) {
+    return false;
+  }
+
+  // Payload
+  if (payload_length == 0) {
+    out_message->message_id = message_id;
+    out_message->is_keep_alive = false;
+    out_message->payload = NULL;
+    out_message->payload_length = 0;
+    return true;
+  }
+
+  received_total = 0;
+
+  unsigned char *payload_buffer = malloc(payload_length);
+
+  if (payload_buffer == NULL) {
+    return false;
+  }
+
+  while (received_total < payload_length) {
+
+    ssize_t received = recv(file_descriptor, payload_buffer + received_total,
+                            payload_length - received_total, 0);
+
+    if (received == 0) {
+      free(payload_buffer);
+      return false;
+    }
+
+    if (received == -1) {
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      free(payload_buffer);
+      return false;
+    }
+
+    received_total += received;
+  }
+
+  out_message->message_id = message_id;
+  out_message->is_keep_alive = false;
+  out_message->payload = payload_buffer;
+  out_message->payload_length = payload_length;
+
+  return true;
+}
+
+void free_peer_wire_message(peer_wire_message_t *message) {
+  message->message_id = PEER_MESSAGE_INVALID;
+  message->is_keep_alive = false;
+  free(message->payload);
+  message->payload = NULL;
+  message->payload_length = 0;
 }
