@@ -220,6 +220,37 @@ bool receive_peer_wire_message(int file_descriptor,
     return true;
   }
 
+  // Message ID Byte
+  received_total = 0;
+
+  const size_t message_id_length = 1;
+  unsigned char message_id_buffer[1] = {0};
+
+  while (received_total < message_id_length) {
+
+    ssize_t received =
+        recv(file_descriptor, message_id_buffer, message_id_length, 0);
+
+    if (received == 0) {
+      return false;
+    }
+
+    if (received == -1) {
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      return false;
+    }
+
+    received_total += received;
+  }
+
+  if (message_id_buffer[0] >= PEER_MESSAGE_INVALID) {
+    // Unsupported message id.
+    return false;
+  }
 
   return false;
 }
