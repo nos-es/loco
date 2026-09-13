@@ -3,6 +3,7 @@
 #include "peer_id.h"
 #include "tracker.h"
 #include <arpa/inet.h>
+#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -180,6 +181,7 @@ bool receive_peer_wire_message(int file_descriptor,
   size_t received_total = 0;
   size_t prefix_byte_length = 4;
   unsigned char prefix_length_buffer[4] = {0};
+
   while (received_total < prefix_byte_length) {
 
     ssize_t received =
@@ -208,6 +210,16 @@ bool receive_peer_wire_message(int file_descriptor,
 
   uint32_t prefix_length = (first_byte << 24) | (second_byte << 16) |
                            (third_byte << 8) | fourth_byte;
+
+  peer_wire_message_t temp_msg = {.message_id = PEER_MESSAGE_INVALID};
+
+  // Keep-Alive-Message
+  if (prefix_length == 0) {
+    temp_msg.is_keep_alive = true;
+    *out_message = temp_msg;
+    return true;
+  }
+
 
   return false;
 }
