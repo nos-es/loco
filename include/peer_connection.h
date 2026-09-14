@@ -24,6 +24,19 @@ enum MessageId {
   PEER_MESSAGE_INVALID = 9
 };
 
+typedef struct PieceBitfield {
+  unsigned char *bytes;
+  size_t length;
+} piece_bitfield_t;
+
+typedef struct PeerConnection {
+  piece_bitfield_t peer_piece_bitfield;
+  peer_t peer;
+  bool peer_choking_us;
+  bool we_are_interested;
+  int socket;
+} peer_connection_t;
+
 typedef struct PeerWireMessage {
   enum MessageId message_id;
   unsigned char *payload;
