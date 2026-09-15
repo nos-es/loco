@@ -1,7 +1,9 @@
 #include "munit.h"
 #include "peer_connection.h"
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -283,6 +285,106 @@ static MunitResult test_receive_peer_wire_message_rejects_unresetted_message(
 
   return MUNIT_OK;
 }
+static MunitResult
+test_bitfield_applied_applies_bitfield(const MunitParameter params[],
+                                       void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  peer_connection_t connection = {
+      .peer_piece_bitfield = {.bytes = NULL, .length = 0}};
+  const size_t piece_count = 10;
+  const unsigned char bitfield_10_pieces[] = {0xB2, 0xC0};
+
+  bool applied = bitfield_applied(&connection, bitfield_10_pieces,
+                                  sizeof(bitfield_10_pieces), piece_count);
+
+  munit_assert_true(applied);
+  munit_assert_not_null(connection.peer_piece_bitfield.bytes);
+  munit_assert_size(sizeof(bitfield_10_pieces), ==,
+                    connection.peer_piece_bitfield.length);
+
+  munit_assert_memory_equal(sizeof(bitfield_10_pieces), bitfield_10_pieces,
+                            connection.peer_piece_bitfield.bytes);
+
+  free(connection.peer_piece_bitfield.bytes);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_bitfield_applied_rejects_wrong_payload_length(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  peer_connection_t connection = {
+      .peer_piece_bitfield = {.bytes = NULL, .length = 0}};
+  const size_t piece_count = 10;
+
+  const unsigned char bitfield_10_pieces[] = {0xB2};
+  const size_t wrong_payload_length = 1;
+
+  bool applied = bitfield_applied(&connection, bitfield_10_pieces,
+                                  wrong_payload_length, piece_count);
+
+  munit_assert_false(applied);
+  munit_assert_null(connection.peer_piece_bitfield.bytes);
+  munit_assert_size(connection.peer_piece_bitfield.length, ==, 0);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_bitfield_applied_rejects_padding_bit_set(const MunitParameter params[],
+                                              void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  peer_connection_t connection = {
+      .peer_piece_bitfield = {.bytes = NULL, .length = 0}};
+  const size_t piece_count = 10;
+
+  const unsigned char bitfield_padding_set[] = {0x55, 0xFF};
+
+  bool applied = bitfield_applied(&connection, bitfield_padding_set,
+                                  sizeof(bitfield_padding_set), piece_count);
+
+  munit_assert_false(applied);
+  munit_assert_null(connection.peer_piece_bitfield.bytes);
+  munit_assert_size(connection.peer_piece_bitfield.length, ==, 0);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_bitfield_applied_rejects_already_applied_bitfield(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char bitfield_10_pieces[] = {0xB2, 0xC0};
+  unsigned char *ownership_test_pointer = bitfield_10_pieces;
+  const size_t payload_length = sizeof(bitfield_10_pieces);
+  const size_t piece_count = 10;
+
+  peer_connection_t connection = {
+      .peer_piece_bitfield = {.bytes = ownership_test_pointer,
+                              .length = payload_length}};
+
+  bool applied = bitfield_applied(&connection, bitfield_10_pieces,
+                                  sizeof(bitfield_10_pieces), piece_count);
+
+  munit_assert_false(applied);
+  munit_assert_not_null(connection.peer_piece_bitfield.bytes);
+  munit_assert_size(payload_length, ==, connection.peer_piece_bitfield.length);
+  munit_assert_ptr(ownership_test_pointer, ==,
+                   connection.peer_piece_bitfield.bytes);
+
+  return MUNIT_OK;
+}
 
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
@@ -305,6 +407,18 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/receive-peer-wire-message/rejects-unresetted-message",
      test_receive_peer_wire_message_rejects_unresetted_message, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/bitfield_applied/applies-bitfield",
+     test_bitfield_applied_applies_bitfield, NULL, NULL, MUNIT_TEST_OPTION_NONE,
+     NULL},
+    {"/bitfield_applied/rejects-wrong-payload-length",
+     test_bitfield_applied_rejects_wrong_payload_length, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/bitfield_applied/rejects-padding-bit-set",
+     test_bitfield_applied_rejects_padding_bit_set, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/bitfield_applied/rejects-already-set-bitfield",
+     test_bitfield_applied_rejects_already_applied_bitfield, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
