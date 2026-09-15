@@ -5,7 +5,6 @@
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
 #include <errno.h>
-#include <math.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -351,7 +350,13 @@ bool bitfield_applied(peer_connection_t *peer_connection,
   if (peer_connection == NULL || received_bitfield_payload == NULL) {
     return false;
   }
+  if (peer_connection->peer_piece_bitfield.bytes != NULL ||
+      peer_connection->peer_piece_bitfield.length != 0) {
+    return false;
+  }
+
   size_t expected_length = (piece_count + 7) / 8;
+
   if (payload_length != expected_length) {
     return false;
   }
@@ -368,7 +373,19 @@ bool bitfield_applied(peer_connection_t *peer_connection,
       return false;
     }
   }
-  return false;
+
+  unsigned char *temp_bitfield = malloc(payload_length);
+  if (temp_bitfield == NULL) {
+    return false;
+  }
+
+  memcpy(temp_bitfield, received_bitfield_payload, payload_length);
+
+  peer_connection->peer_piece_bitfield.bytes = temp_bitfield;
+
+  peer_connection->peer_piece_bitfield.length = payload_length;
+
+  return true;
 }
 
 void free_peer_wire_message(peer_wire_message_t *message) {
