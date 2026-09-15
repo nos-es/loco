@@ -52,4 +52,8 @@ bool handshake_with_peer(int file_descriptor, const info_hash_t *info_hash,
 bool receive_peer_wire_message(int file_descriptor,
                                peer_wire_message_t *out_message);
 
+bool bitfield_applied(peer_connection_t *peer_connection,
+                      const unsigned char *received_bitfield_payload,
+                      const size_t payload_length, const size_t piece_count);
+
 void free_peer_wire_message(peer_wire_message_t *message);
