@@ -235,7 +235,93 @@ int main(int argc, char *argv[]) {
          current_peers[0].port);
   printf("\n");
 
-  // free buffer when program ends.
+  bool connection_active = true;
+  size_t piece_count = torrent_info->pieces.length / 20;
+  peer_wire_message_t msg = {.message_id = PEER_MESSAGE_INVALID};
+
+  peer_connection_t current_connection = {
+      .peer_piece_bitfield = {.bytes = NULL, .length = 0},
+      .peer = current_peers[0],
+      .peer_choking_us = true,
+      .we_are_interested = false,
+      .socket = fd};
+
+  size_t current_piece_index = 0;
+  while (connection_active) {
+
+    free_peer_wire_message(&msg);
+
+    bool received_msg = receive_peer_wire_message(fd, &msg);
+
+    if (!received_msg) {
+      fprintf(stderr, "No valid peer wire message received.\n");
+
+      connection_active = false;
+      break;
+    }
+
+    if (msg.is_keep_alive) {
+      continue;
+    }
+
+    switch (msg.message_id) {
+
+    case PEER_MESSAGE_CHOKE:
+      current_connection.peer_choking_us = true;
+      break;
+    case PEER_MESSAGE_UNCHOKE:
+      current_connection.peer_choking_us = false;
+      break;
+    case PEER_MESSAGE_INTERESTED:
+      break;
+    case PEER_MESSAGE_NOT_INTERESTED:
+      break;
+    case PEER_MESSAGE_HAVE:
+      break;
+    case PEER_MESSAGE_BITFIELD: {
+
+      bool bitfield_payload_applied = bitfield_applied(
+          &current_connection, msg.payload, msg.payload_length, piece_count);
+
+      if (!bitfield_payload_applied) {
+
+        connection_active = false;
+        continue;
+      }
+      break;
+    }
+    case PEER_MESSAGE_REQUEST:
+      break;
+    case PEER_MESSAGE_PIECE:
+      break;
+    case PEER_MESSAGE_CANCEL:
+      break;
+    case PEER_MESSAGE_INVALID:
+      break;
+    }
+
+    // bitfield exists from this peer.
+    if (current_connection.peer_piece_bitfield.bytes != NULL) {
+
+      size_t byte_index = current_piece_index / 8;
+      size_t bit_position = current_piece_index % 8;
+      unsigned char mask = 0x80 >> bit_position;
+
+      if (current_piece_index < piece_count &&
+          byte_index < current_connection.peer_piece_bitfield.length) {
+
+        // Does this peer have this piece? If 0 then switch peer.
+        if ((current_connection.peer_piece_bitfield.bytes[byte_index] & mask) !=
+            0) {
+        }
+      }
+    }
+  }
+
+  // Cleanup connection.
+  free(current_connection.peer_piece_bitfield.bytes);
+  free_peer_wire_message(&msg);
+
   close(fd);
   free(current_peers);
   free_bencode_object(&response_obj);
