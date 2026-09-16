@@ -254,19 +254,17 @@ bool peer_send_request(int file_descriptor, uint32_t piece_index,
     return false;
   }
 
-  // TODO: Move to constant
-  size_t uint32_byte_count = 4;
   size_t byte_offset = 0;
 
-  uint32_t request_prefix_length =
-      PEER_MESSAGE_REQUEST_LENGTH - uint32_byte_count;
+  uint32_t request_prefix_length_value =
+      PEER_MESSAGE_REQUEST_LENGTH - LENGTH_PREFIX_SIZE;
 
   unsigned char request_buffer[PEER_MESSAGE_REQUEST_LENGTH];
 
   // write prefix length to buffer
   bool prefix_len_appended =
       append_uint32_big_endian(request_buffer, PEER_MESSAGE_REQUEST_LENGTH,
-                               &byte_offset, request_prefix_length);
+                               &byte_offset, request_prefix_length_value);
   if (!prefix_len_appended) {
     return false;
   }
@@ -302,8 +300,30 @@ bool peer_send_request(int file_descriptor, uint32_t piece_index,
     return false;
   }
 
-  // TODO: turn to true, when function finished.
-  return false;
+  size_t send_total = 0;
+  while (send_total < PEER_MESSAGE_REQUEST_LENGTH) {
+
+    ssize_t sent = send(file_descriptor, request_buffer + send_total,
+                        PEER_MESSAGE_REQUEST_LENGTH - send_total, MSG_NOSIGNAL);
+
+    if (sent == 0) {
+      return false;
+    }
+
+    // Problem with connection? Or retry?
+    if (sent == -1) {
+
+      // systemcall was interrupted by a signal.
+      if (errno == EINTR) {
+        continue;
+      }
+
+      return false;
+    }
+
+    send_total += sent;
+  }
+  return true;
 }
 
 bool peer_send_interested(int file_descriptor) {
