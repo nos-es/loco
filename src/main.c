@@ -303,17 +303,30 @@ int main(int argc, char *argv[]) {
     // bitfield exists from this peer.
     if (current_connection.peer_piece_bitfield.bytes != NULL) {
 
+      if (current_piece_index >= piece_count) {
+        break;
+      }
+
       size_t byte_index = current_piece_index / 8;
       size_t bit_position = current_piece_index % 8;
       unsigned char mask = 0x80 >> bit_position;
 
-      if (current_piece_index < piece_count &&
-          byte_index < current_connection.peer_piece_bitfield.length) {
+      if (byte_index >= current_connection.peer_piece_bitfield.length) {
+        break;
+      }
 
-        // Does this peer have this piece? If 0 then switch peer.
-        if ((current_connection.peer_piece_bitfield.bytes[byte_index] & mask) !=
-            0) {
+      // Peer does not have current piece.
+      if ((current_connection.peer_piece_bitfield.bytes[byte_index] & mask) ==
+          0) {
+        break;
+      }
+
+      if (current_connection.we_are_interested == false) {
+        bool interested_sent = peer_send_interested(fd);
+        if (!interested_sent) {
+          break;
         }
+        current_connection.we_are_interested = true;
       }
     }
   }
