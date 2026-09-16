@@ -14,6 +14,27 @@
 #include <unistd.h>
 
 static const unsigned char handshake_protocol[] = "BitTorrent protocol";
+
+bool write_uint32_big_endian(unsigned char *buffer, size_t buffer_capacity,
+                             uint32_t value) {
+
+  if (buffer == NULL || buffer_capacity < 4) {
+    return false;
+  }
+
+  unsigned char first_byte = value >> 24;
+  unsigned char second_byte = value >> 16;
+  unsigned char third_byte = value >> 8;
+  unsigned char fourth_byte = value;
+
+  buffer[0] = first_byte;
+  buffer[1] = second_byte;
+  buffer[2] = third_byte;
+  buffer[3] = fourth_byte;
+
+  return true;
+}
+
 int connect_to_peer(const peer_t *peer) {
 
   if (peer == NULL) {
@@ -198,6 +219,55 @@ static bool is_valid_payload_length_for_message(size_t payload_length,
   default:
     return false;
   }
+}
+
+bool peer_send_interested(int file_descriptor) {
+
+  if (file_descriptor < 0) {
+    return false;
+  }
+
+  uint32_t interested_prefix_length = 1;
+  unsigned char interested_msg_buffer[PEER_MESSAGE_INTERESTED_LENGTH];
+
+  bool uint32_big_endian_written = write_uint32_big_endian(
+      interested_msg_buffer, PEER_MESSAGE_INTERESTED_LENGTH,
+      interested_prefix_length);
+
+  if (!uint32_big_endian_written) {
+    return false;
+  }
+
+  interested_msg_buffer[PEER_MESSAGE_INTERESTED_LENGTH - 1] =
+      PEER_MESSAGE_INTERESTED;
+
+  size_t msg_buffer_length = sizeof(interested_msg_buffer);
+
+  size_t send_total = 0;
+  while (send_total < msg_buffer_length) {
+
+    ssize_t sent = send(file_descriptor, interested_msg_buffer + send_total,
+                        msg_buffer_length - send_total, MSG_NOSIGNAL);
+
+    if (sent == 0) {
+      return false;
+    }
+
+    // Problem with connection? Or retry?
+    if (sent == -1) {
+
+      // systemcall was interrupted by a signal.
+      if (errno == EINTR) {
+        continue;
+      }
+
+      return false;
+    }
+
+    send_total += sent;
+  }
+
+  return true;
 }
 
 bool receive_peer_wire_message(int file_descriptor,

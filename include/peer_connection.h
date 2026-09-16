@@ -57,4 +57,6 @@ bool bitfield_applied(peer_connection_t *peer_connection,
                       const unsigned char *received_bitfield_payload,
                       const size_t payload_length, const size_t piece_count);
 
+bool peer_send_interested(int file_descriptor);
+
 void free_peer_wire_message(peer_wire_message_t *message);
