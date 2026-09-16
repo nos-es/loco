@@ -4,11 +4,13 @@
 #include "tracker.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 enum {
   BITTORRENT_PROTOCOL_NAME_LENGTH = 19,
   HANDSHAKE_BYTES_LENGTH = 68,
   PEER_MESSAGE_INTERESTED_LENGTH = 5,
+  PEER_MESSAGE_REQUEST_LENGTH = 17,
   MAX_PAYLOAD_LENGTH = 1048576,
 };
 
@@ -58,5 +60,7 @@ bool bitfield_applied(peer_connection_t *peer_connection,
                       const size_t payload_length, const size_t piece_count);
 
 bool peer_send_interested(int file_descriptor);
+bool peer_send_request(int file_descriptor, uint32_t piece_index,
+                       uint32_t begin, uint32_t length);
 
 void free_peer_wire_message(peer_wire_message_t *message);

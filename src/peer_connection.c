@@ -220,6 +220,91 @@ static bool is_valid_payload_length_for_message(size_t payload_length,
     return false;
   }
 }
+bool append_uint32_big_endian(unsigned char *buffer,
+                              const size_t total_buffer_length,
+                              size_t *byte_offset, uint32_t value) {
+  if (buffer == NULL || byte_offset == NULL) {
+    return false;
+  }
+
+  const size_t uint32_byte_count = 4;
+
+  if (*byte_offset > total_buffer_length) {
+    return false;
+  }
+
+  if ((total_buffer_length - *byte_offset) < uint32_byte_count) {
+    return false;
+  }
+
+  bool written = write_uint32_big_endian(
+      buffer + *byte_offset, total_buffer_length - *byte_offset, value);
+
+  if (!written) {
+    return false;
+  }
+
+  *byte_offset += uint32_byte_count;
+
+  return true;
+}
+bool peer_send_request(int file_descriptor, uint32_t piece_index,
+                       uint32_t begin, uint32_t length) {
+  if (file_descriptor < 0) {
+    return false;
+  }
+
+  // TODO: Move to constant
+  size_t uint32_byte_count = 4;
+  size_t byte_offset = 0;
+
+  uint32_t request_prefix_length =
+      PEER_MESSAGE_REQUEST_LENGTH - uint32_byte_count;
+
+  unsigned char request_buffer[PEER_MESSAGE_REQUEST_LENGTH];
+
+  // write prefix length to buffer
+  bool prefix_len_appended =
+      append_uint32_big_endian(request_buffer, PEER_MESSAGE_REQUEST_LENGTH,
+                               &byte_offset, request_prefix_length);
+  if (!prefix_len_appended) {
+    return false;
+  }
+
+  // write message_id to buffer
+  request_buffer[byte_offset] = PEER_MESSAGE_REQUEST;
+  byte_offset += 1;
+
+  // write piece index to buffer
+  bool piece_index_appended = append_uint32_big_endian(
+      request_buffer, PEER_MESSAGE_REQUEST_LENGTH, &byte_offset, piece_index);
+  if (!piece_index_appended) {
+    return false;
+  }
+
+  // write begin to buffer.
+  bool begin_appended = append_uint32_big_endian(
+      request_buffer, PEER_MESSAGE_REQUEST_LENGTH, &byte_offset, begin);
+
+  if (!begin_appended) {
+    return false;
+  }
+
+  // length begin to buffer.
+  bool length_appended = append_uint32_big_endian(
+      request_buffer, PEER_MESSAGE_REQUEST_LENGTH, &byte_offset, length);
+
+  if (!length_appended) {
+    return false;
+  }
+
+  if (byte_offset != PEER_MESSAGE_REQUEST_LENGTH) {
+    return false;
+  }
+
+  // TODO: turn to true, when function finished.
+  return false;
+}
 
 bool peer_send_interested(int file_descriptor) {
 
