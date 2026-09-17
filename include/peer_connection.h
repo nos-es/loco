@@ -12,6 +12,7 @@ enum {
   PEER_MESSAGE_INTERESTED_LENGTH = 5,
   PEER_MESSAGE_REQUEST_LENGTH = 17,
   LENGTH_PREFIX_SIZE = 4,
+  DEFAULT_REQUEST_BLOCK_SIZE = 16384,
   MAX_PAYLOAD_LENGTH = 1048576,
 };
 
@@ -47,6 +48,16 @@ typedef struct PeerWireMessage {
   size_t payload_length;
   bool is_keep_alive;
 } peer_wire_message_t;
+
+typedef struct PieceDownloadState {
+  size_t piece_index;
+  size_t piece_size;
+  unsigned char *piece_buffer;
+  size_t bytes_received;
+  bool request_pending;
+  uint32_t requested_begin;
+  uint32_t requested_length;
+} piece_download_state_t;
 
 int connect_to_peer(const peer_t *peer);
 

@@ -8,6 +8,7 @@
 #include "torrent_metadata.h"
 #include "tracker.h"
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -235,8 +236,43 @@ int main(int argc, char *argv[]) {
          current_peers[0].port);
   printf("\n");
 
-  bool connection_active = true;
+  if (torrent_info->piece_length <= 0 || torrent_info->length < 0) {
+    close(fd);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  if ((uintmax_t)torrent_info->piece_length > (uintmax_t)SIZE_MAX ||
+      (uintmax_t)torrent_info->length > (uintmax_t)SIZE_MAX) {
+    close(fd);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
   size_t piece_count = torrent_info->pieces.length / 20;
+
+  if (piece_count == 0) {
+    fprintf(stderr, "Piece count is 0.\n");
+    close(fd);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  bool connection_active = true;
+  size_t total_file_size = (size_t)torrent_info->length;
+  size_t normal_piece_size = (size_t)torrent_info->piece_length;
   peer_wire_message_t msg = {.message_id = PEER_MESSAGE_INVALID};
 
   peer_connection_t current_connection = {
@@ -246,7 +282,15 @@ int main(int argc, char *argv[]) {
       .we_are_interested = false,
       .socket = fd};
 
-  size_t current_piece_index = 0;
+  size_t first_piece_size = normal_piece_size;
+
+  if (piece_count == 1) {
+    first_piece_size = total_file_size;
+  }
+
+  piece_download_state_t current_piece_state = {.piece_index = 0,
+                                                .piece_size = first_piece_size};
+
   while (connection_active) {
 
     free_peer_wire_message(&msg);
@@ -303,12 +347,12 @@ int main(int argc, char *argv[]) {
     // bitfield exists from this peer.
     if (current_connection.peer_piece_bitfield.bytes != NULL) {
 
-      if (current_piece_index >= piece_count) {
+      if (current_piece_state.piece_index >= piece_count) {
         break;
       }
 
-      size_t byte_index = current_piece_index / 8;
-      size_t bit_position = current_piece_index % 8;
+      size_t byte_index = current_piece_state.piece_index / 8;
+      size_t bit_position = current_piece_state.piece_index % 8;
       unsigned char mask = 0x80 >> bit_position;
 
       if (byte_index >= current_connection.peer_piece_bitfield.length) {
@@ -320,6 +364,17 @@ int main(int argc, char *argv[]) {
           0) {
         break;
       }
+      if (current_piece_state.bytes_received > current_piece_state.piece_size) {
+
+        break;
+      }
+
+      // bytes for this piece already received
+      if (current_piece_state.bytes_received ==
+          current_piece_state.piece_size) {
+        // TODO: SHA1 Check
+        break;
+      }
 
       if (current_connection.we_are_interested == false) {
         bool interested_sent = peer_send_interested(fd);
@@ -327,6 +382,32 @@ int main(int argc, char *argv[]) {
           break;
         }
         current_connection.we_are_interested = true;
+      }
+
+      // When true send request.
+      if (current_connection.we_are_interested == true &&
+          current_connection.peer_choking_us == false &&
+          current_piece_state.request_pending == false) {
+
+        size_t remaining =
+            current_piece_state.piece_size - current_piece_state.bytes_received;
+        size_t request_begin = current_piece_state.bytes_received;
+        size_t request_length = DEFAULT_REQUEST_BLOCK_SIZE;
+
+        if (remaining < DEFAULT_REQUEST_BLOCK_SIZE) {
+          request_length = remaining;
+        }
+
+        bool requested = peer_send_request(fd, current_piece_state.piece_index,
+                                           request_begin, request_length);
+        if (!requested) {
+          break;
+        }
+        // TODO: update current piece state.
+        current_piece_state.request_pending = true;
+        current_piece_state.requested_length = DEFAULT_REQUEST_BLOCK_SIZE;
+        current_piece_state.requested_begin =
+            current_piece_state.bytes_received;
       }
     }
   }
