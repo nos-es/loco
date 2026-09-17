@@ -1,5 +1,6 @@
 #include "munit.h"
 #include "peer_connection.h"
+#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -385,6 +386,99 @@ static MunitResult test_bitfield_applied_rejects_already_applied_bitfield(
 
   return MUNIT_OK;
 }
+static MunitResult
+test_peer_send_request_sends_17_bytes(const MunitParameter params[],
+                                      void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  int sockets[2];
+
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
+    return MUNIT_FAIL;
+  }
+  uint32_t piece_index = 2;
+  uint32_t begin = 16384;
+  uint32_t length = 16384;
+
+  bool request_sent = peer_send_request(sockets[0], piece_index, begin, length);
+
+  if (!request_sent) {
+    close(sockets[0]);
+    close(sockets[1]);
+    return MUNIT_FAIL;
+  }
+
+  size_t received_total = 0;
+  size_t expected_byte_count = PEER_MESSAGE_REQUEST_LENGTH;
+  unsigned char receive_request_buffer[PEER_MESSAGE_REQUEST_LENGTH] = {0};
+
+  while (received_total < expected_byte_count) {
+
+    ssize_t received = recv(sockets[1], receive_request_buffer + received_total,
+                            expected_byte_count - received_total, 0);
+
+    if (received == 0) {
+      close(sockets[0]);
+      close(sockets[1]);
+      return MUNIT_FAIL;
+    }
+
+    if (received == -1) {
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      close(sockets[0]);
+      close(sockets[1]);
+      return MUNIT_FAIL;
+    }
+
+    received_total += received;
+  }
+
+  unsigned char expected_receive_bytes[] = {0x00, 0x00, 0x00, 0x0D, 0x06, 0x00,
+                                            0x00, 0x00, 0x02, 0x00, 0x00, 0x40,
+                                            0x00, 0x00, 0x00, 0x40, 0x00};
+
+  size_t expected_payload_length = PEER_MESSAGE_REQUEST_LENGTH;
+
+  munit_assert_memory_equal(expected_payload_length, expected_receive_bytes,
+                            receive_request_buffer);
+
+  close(sockets[0]);
+  close(sockets[1]);
+
+  return MUNIT_OK;
+}
+
+static MunitResult
+test_peer_send_request_rejects_invalid_socket(const MunitParameter params[],
+                                              void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  int sockets[2];
+
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
+    return MUNIT_FAIL;
+  }
+  uint32_t piece_index = 2;
+  uint32_t begin = 16384;
+  uint32_t length = 16384;
+
+  bool request_sent = peer_send_request(-1, piece_index, begin, length);
+
+  munit_assert_false(request_sent);
+
+  close(sockets[0]);
+  close(sockets[1]);
+
+  return MUNIT_OK;
+}
 
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
@@ -419,6 +513,12 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/bitfield_applied/rejects-already-set-bitfield",
      test_bitfield_applied_rejects_already_applied_bitfield, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/peer_send_request/returns-exactly-17-bytes",
+     test_peer_send_request_sends_17_bytes, NULL, NULL, MUNIT_TEST_OPTION_NONE,
+     NULL},
+    {"/peer_send_request/rejects-invalid-socket",
+     test_peer_send_request_rejects_invalid_socket, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
