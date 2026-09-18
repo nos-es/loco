@@ -480,6 +480,19 @@ test_peer_send_request_rejects_invalid_socket(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+static MunitResult
+test_peer_send_interested_rejects_invalid_socket(const MunitParameter params[],
+                                                 void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  bool request_sent = peer_send_interested(-1);
+
+  munit_assert_false(request_sent);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
      test_receive_peer_wire_message_returns_interested_message, NULL, NULL,
@@ -519,6 +532,9 @@ static MunitTest tests[] = {
      NULL},
     {"/peer_send_request/rejects-invalid-socket",
      test_peer_send_request_rejects_invalid_socket, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/peer_send_interested/rejects-invalid-socket",
+     test_peer_send_interested_rejects_invalid_socket, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
