@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 int main(int argc, char *argv[]) {
@@ -288,8 +289,22 @@ int main(int argc, char *argv[]) {
     first_piece_size = total_file_size;
   }
 
+  unsigned char *piece_buffer = malloc(first_piece_size);
+
+  if (piece_buffer == NULL) {
+    fprintf(stderr, "Buffer memory for pieces could not be allocated.\n");
+    close(fd);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
   piece_download_state_t current_piece_state = {.piece_index = 0,
-                                                .piece_size = first_piece_size};
+                                                .piece_size = first_piece_size,
+                                                .piece_buffer = piece_buffer};
 
   while (connection_active) {
 
@@ -336,8 +351,49 @@ int main(int argc, char *argv[]) {
     }
     case PEER_MESSAGE_REQUEST:
       break;
-    case PEER_MESSAGE_PIECE:
+    case PEER_MESSAGE_PIECE: {
+
+      if (!current_piece_state.request_pending) {
+        connection_active = false;
+        continue;
+      }
+
+      size_t piece_index = 0;
+      size_t begin = 0;
+      size_t block_length = 0;
+      const unsigned char *block_buffer = NULL;
+
+      bool piece_info_determined = determine_piece_info_from_piece_payload(
+          &msg, &piece_index, &begin, &block_buffer, &block_length);
+
+      if (!piece_info_determined) {
+        connection_active = false;
+        continue;
+      }
+
+      // validate piece info
+      if (piece_index != current_piece_state.piece_index ||
+          begin != current_piece_state.requested_begin ||
+          block_length != current_piece_state.requested_length) {
+        connection_active = false;
+        continue;
+      }
+
+      // check overflow.
+      if (begin > current_piece_state.piece_size ||
+          block_length > current_piece_state.piece_size - begin) {
+        connection_active = false;
+        continue;
+      }
+
+      memcpy(current_piece_state.piece_buffer + begin, block_buffer,
+             block_length);
+
+      current_piece_state.bytes_received += block_length;
+      current_piece_state.request_pending = false;
+
       break;
+    }
     case PEER_MESSAGE_CANCEL:
       break;
     case PEER_MESSAGE_INVALID:
@@ -425,6 +481,7 @@ int main(int argc, char *argv[]) {
   free_peer_wire_message(&msg);
 
   close(fd);
+  free(current_piece_state.piece_buffer);
   free(current_peers);
   free_bencode_object(&response_obj);
   free(tracker_response.data);
