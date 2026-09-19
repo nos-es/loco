@@ -518,6 +518,50 @@ bool receive_peer_wire_message(int file_descriptor,
   return true;
 }
 
+bool determine_piece_info_from_piece_payload(peer_wire_message_t *piece_message,
+                                             size_t *out_piece_index,
+                                             size_t *out_begin,
+                                             const unsigned char **out_block,
+                                             size_t *out_block_length) {
+
+  if (piece_message == NULL || out_piece_index == NULL || out_begin == NULL ||
+      out_block == NULL || out_block_length == NULL) {
+    return false;
+  }
+
+  if (piece_message->message_id != PEER_MESSAGE_PIECE ||
+      piece_message->payload_length < 8) {
+    return false;
+  }
+
+  if (piece_message->payload == NULL) {
+    return false;
+  }
+
+  uint32_t piece_index = ((uint32_t)piece_message->payload[0] << 24) |
+                         ((uint32_t)piece_message->payload[1] << 16) |
+                         ((uint32_t)piece_message->payload[2] << 8) |
+                         ((uint32_t)piece_message->payload[3]);
+
+  uint32_t begin = ((uint32_t)piece_message->payload[4] << 24) |
+                   ((uint32_t)piece_message->payload[5] << 16) |
+                   ((uint32_t)piece_message->payload[6] << 8) |
+                   ((uint32_t)piece_message->payload[7]);
+
+  // check overflow.
+  if ((uintmax_t)piece_index > (uintmax_t)SIZE_MAX ||
+      (uintmax_t)begin > (uintmax_t)SIZE_MAX) {
+    return false;
+  }
+
+  *out_piece_index = (size_t)piece_index;
+  *out_begin = (size_t)begin;
+  *out_block = piece_message->payload + 8;
+  *out_block_length = piece_message->payload_length - 8;
+
+  return true;
+}
+
 bool bitfield_applied(peer_connection_t *peer_connection,
                       const unsigned char *received_bitfield_payload,
                       const size_t payload_length, const size_t piece_count) {
