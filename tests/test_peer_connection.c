@@ -493,6 +493,46 @@ test_peer_send_interested_rejects_invalid_socket(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+static MunitResult
+test_determine_piece_info_from_piece_payload_returns_correct_output(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  unsigned char payload_buffer[] = {0x00, 0x00, 0x00, 0x02, 0x00,
+                                    0x00, 0x40, 0x00, 0xFF, 0xFF};
+
+  size_t payload_length = sizeof(payload_buffer);
+
+  peer_wire_message_t test_msg = {.message_id = PEER_MESSAGE_PIECE,
+                                  .payload = payload_buffer,
+                                  .payload_length = payload_length,
+                                  .is_keep_alive = false};
+
+  size_t piece_index = 0;
+  size_t begin = 0;
+  size_t block_length = 0;
+  const unsigned char *block_buffer = NULL;
+
+  bool determined = determine_piece_info_from_piece_payload(
+      &test_msg, &piece_index, &begin, &block_buffer, &block_length);
+
+  munit_assert_true(determined);
+
+  size_t expected_piece_index = 2;
+  size_t expected_begin = 16384;
+  size_t expected_block_length = 2;
+
+  munit_assert_size(expected_piece_index, ==, piece_index);
+  munit_assert_size(expected_block_length, ==, block_length);
+  munit_assert_size(expected_begin, ==, begin);
+  munit_assert_memory_equal(expected_block_length, payload_buffer + 8,
+                            block_buffer);
+  munit_assert_ptr(payload_buffer + 8, ==, block_buffer);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
      test_receive_peer_wire_message_returns_interested_message, NULL, NULL,
@@ -536,6 +576,9 @@ static MunitTest tests[] = {
     {"/peer_send_interested/rejects-invalid-socket",
      test_peer_send_interested_rejects_invalid_socket, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
+    {"/determine_piece_info/returns-correct-output",
+     test_determine_piece_info_from_piece_payload_returns_correct_output, NULL,
+     NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
