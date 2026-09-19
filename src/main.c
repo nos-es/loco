@@ -364,6 +364,7 @@ int main(int argc, char *argv[]) {
           0) {
         break;
       }
+
       if (current_piece_state.bytes_received > current_piece_state.piece_size) {
 
         break;
@@ -398,16 +399,23 @@ int main(int argc, char *argv[]) {
           request_length = remaining;
         }
 
-        bool requested = peer_send_request(fd, current_piece_state.piece_index,
-                                           request_begin, request_length);
+        // check uint32_t overflow before sending request.
+        if (current_piece_state.piece_index > UINT32_MAX ||
+            current_piece_state.bytes_received > UINT32_MAX) {
+          break;
+        }
+
+        bool requested = peer_send_request(
+            fd, (uint32_t)current_piece_state.piece_index,
+            (uint32_t)request_begin, (uint32_t)request_length);
+
         if (!requested) {
           break;
         }
         // TODO: update current piece state.
         current_piece_state.request_pending = true;
-        current_piece_state.requested_length = DEFAULT_REQUEST_BLOCK_SIZE;
-        current_piece_state.requested_begin =
-            current_piece_state.bytes_received;
+        current_piece_state.requested_length = request_length;
+        current_piece_state.requested_begin = request_begin;
       }
     }
   }
