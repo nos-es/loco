@@ -533,6 +533,43 @@ test_determine_piece_info_from_piece_payload_returns_correct_output(
   return MUNIT_OK;
 }
 
+static MunitResult
+test_determine_piece_info_from_piece_payload_rejects_invalid_payload_length(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  unsigned char too_small_payload_buffer[] = {0x00, 0x00, 0x40,
+                                              0x00, 0xFF, 0xFF};
+
+  size_t payload_length = sizeof(too_small_payload_buffer);
+
+  peer_wire_message_t test_msg = {.message_id = PEER_MESSAGE_PIECE,
+                                  .payload = too_small_payload_buffer,
+                                  .payload_length = payload_length,
+                                  .is_keep_alive = false};
+
+  size_t piece_index = 0;
+  size_t begin = 0;
+  size_t block_length = 0;
+  const unsigned char *block_buffer = NULL;
+
+  bool determined = determine_piece_info_from_piece_payload(
+      &test_msg, &piece_index, &begin, &block_buffer, &block_length);
+
+  munit_assert_false(determined);
+
+  size_t expected_unchanged_piece_index = 0;
+  size_t expected_unchanged_begin = 0;
+  size_t expected_unchanged_block_length = 0;
+
+  munit_assert_size(expected_unchanged_piece_index, ==, piece_index);
+  munit_assert_size(expected_unchanged_block_length, ==, block_length);
+  munit_assert_size(expected_unchanged_begin, ==, begin);
+  munit_assert_null(block_buffer);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
      test_receive_peer_wire_message_returns_interested_message, NULL, NULL,
@@ -579,6 +616,9 @@ static MunitTest tests[] = {
     {"/determine_piece_info/returns-correct-output",
      test_determine_piece_info_from_piece_payload_returns_correct_output, NULL,
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/determine_piece_info/rejects-invalid-payload-length",
+     test_determine_piece_info_from_piece_payload_rejects_invalid_payload_length,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
