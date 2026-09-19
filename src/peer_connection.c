@@ -548,12 +548,6 @@ bool determine_piece_info_from_piece_payload(peer_wire_message_t *piece_message,
                    ((uint32_t)piece_message->payload[6] << 8) |
                    ((uint32_t)piece_message->payload[7]);
 
-  // check overflow.
-  if ((uintmax_t)piece_index > (uintmax_t)SIZE_MAX ||
-      (uintmax_t)begin > (uintmax_t)SIZE_MAX) {
-    return false;
-  }
-
   *out_piece_index = (size_t)piece_index;
   *out_begin = (size_t)begin;
   *out_block = piece_message->payload + 8;
