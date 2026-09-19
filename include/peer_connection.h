@@ -72,7 +72,14 @@ bool bitfield_applied(peer_connection_t *peer_connection,
                       const size_t payload_length, const size_t piece_count);
 
 bool peer_send_interested(int file_descriptor);
+
 bool peer_send_request(int file_descriptor, uint32_t piece_index,
                        uint32_t begin, uint32_t length);
+
+bool determine_piece_info_from_piece_payload(peer_wire_message_t *piece_message,
+                                             size_t *out_piece_index,
+                                             size_t *out_begin,
+                                             const unsigned char **out_block,
+                                             size_t *out_block_length);
 
 void free_peer_wire_message(peer_wire_message_t *message);
