@@ -570,6 +570,46 @@ test_determine_piece_info_from_piece_payload_rejects_invalid_payload_length(
 
   return MUNIT_OK;
 }
+
+static MunitResult
+test_determine_piece_info_from_piece_payload_rejects_wrong_message_id(
+    const MunitParameter params[], void *user_data) {
+  (void)params;
+  (void)user_data;
+
+  unsigned char payload_buffer[] = {0x00, 0x00, 0x00, 0x02, 0x00,
+                                    0x00, 0x40, 0x00, 0xFF, 0xFF};
+
+  size_t payload_length = sizeof(payload_buffer);
+  enum MessageId wrong_message_id = PEER_MESSAGE_INTERESTED;
+
+  peer_wire_message_t test_msg = {.message_id = wrong_message_id,
+                                  .payload = payload_buffer,
+                                  .payload_length = payload_length,
+                                  .is_keep_alive = false};
+
+  size_t piece_index = 0;
+  size_t begin = 0;
+  size_t block_length = 0;
+  const unsigned char *block_buffer = NULL;
+
+  bool determined = determine_piece_info_from_piece_payload(
+      &test_msg, &piece_index, &begin, &block_buffer, &block_length);
+
+  munit_assert_false(determined);
+
+  size_t expected_unchanged_piece_index = 0;
+  size_t expected_unchanged_begin = 0;
+  size_t expected_unchanged_block_length = 0;
+
+  munit_assert_size(expected_unchanged_piece_index, ==, piece_index);
+  munit_assert_size(expected_unchanged_block_length, ==, block_length);
+  munit_assert_size(expected_unchanged_begin, ==, begin);
+  munit_assert_null(block_buffer);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
      test_receive_peer_wire_message_returns_interested_message, NULL, NULL,
@@ -618,6 +658,9 @@ static MunitTest tests[] = {
      NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/determine_piece_info/rejects-invalid-payload-length",
      test_determine_piece_info_from_piece_payload_rejects_invalid_payload_length,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/determine_piece_info/rejects-wrong-message-id",
+     test_determine_piece_info_from_piece_payload_rejects_wrong_message_id,
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
