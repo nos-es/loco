@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+enum { PIECE_SHA1_LENGTH = 20 };
+
 typedef struct BencodedSpan {
   size_t start_offset;
   size_t length;
