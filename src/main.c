@@ -8,6 +8,8 @@
 #include "torrent_metadata.h"
 #include "tracker.h"
 #include <inttypes.h>
+#include <limits.h>
+#include <openssl/sha.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -15,7 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
 
 int main(int argc, char *argv[]) {
 
@@ -371,6 +372,35 @@ int main(int argc, char *argv[]) {
       break;
     }
 
+    // all bytes for this piece received
+    if (current_piece_state.bytes_received == current_piece_state.piece_size) {
+      size_t sha1_offset_current_piece_index =
+          current_piece_state.piece_index * 20;
+
+      if (sha1_offset_current_piece_index > torrent_info->pieces.length - 20) {
+        break;
+      }
+
+      const unsigned char *current_piece_hash_from_torrent_info =
+          torrent_info->pieces.data + sha1_offset_current_piece_index;
+
+      unsigned char current_piece_sha1[PIECE_SHA1_LENGTH];
+
+      SHA1(current_piece_state.piece_buffer, current_piece_state.piece_size,
+           current_piece_sha1);
+
+      if (memcmp(current_piece_sha1, current_piece_hash_from_torrent_info,
+                 PIECE_SHA1_LENGTH) != 0) {
+        current_piece_state.request_pending = false;
+        current_piece_state.requested_length = 0;
+        current_piece_state.requested_begin = 0;
+        current_piece_state.bytes_received = 0;
+        break;
+      }
+
+      break;
+    }
+
     // bitfield exists from this peer.
     if (current_connection.peer_piece_bitfield.bytes != NULL) {
 
@@ -393,13 +423,6 @@ int main(int argc, char *argv[]) {
       }
 
       if (current_piece_state.bytes_received > current_piece_state.piece_size) {
-        break;
-      }
-
-      // all bytes for this piece received
-      if (current_piece_state.bytes_received ==
-          current_piece_state.piece_size) {
-        // TODO: SHA1 Check
         break;
       }
 
