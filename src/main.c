@@ -305,6 +305,26 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  size_t filepath_length = torrent_info->name.length;
+  char filepath[filepath_length + 1];
+
+  memcpy(filepath, torrent_info->name.data, torrent_info->name.length);
+  filepath[filepath_length] = '\0';
+
+  FILE *fp = fopen(filepath, "wb");
+
+  if (fp == NULL) {
+    fprintf(stderr, "Creating file failed.\n");
+    close(fd);
+    free(piece_buffer);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
   piece_download_state_t current_piece_state = {.piece_index = 0,
                                                 .piece_size = first_piece_size,
                                                 .piece_buffer = piece_buffer};
@@ -395,6 +415,26 @@ int main(int argc, char *argv[]) {
         current_piece_state.requested_length = 0;
         current_piece_state.requested_begin = 0;
         current_piece_state.bytes_received = 0;
+        break;
+      }
+
+      // TODO: write piece in file
+
+      if (current_piece_state.piece_index != 0) {
+
+        // if true, then size_t overflow.
+        if (normal_piece_size > SIZE_MAX / current_piece_state.piece_index) {
+          break;
+        }
+      }
+
+      size_t file_offset = current_piece_state.piece_index * normal_piece_size;
+
+      if (file_offset > LONG_MAX) {
+        break;
+      }
+
+      if (fseek(fp, (long)file_offset, SEEK_SET) != 0) {
         break;
       }
 
