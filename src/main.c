@@ -16,6 +16,7 @@
 #include <string.h>
 #include <unistd.h>
 
+
 int main(int argc, char *argv[]) {
 
   const char *torrent_filepath = NULL;
@@ -274,7 +275,8 @@ int main(int argc, char *argv[]) {
   bool connection_active = true;
   size_t total_file_size = (size_t)torrent_info->length;
   size_t normal_piece_size = (size_t)torrent_info->piece_length;
-  peer_wire_message_t msg = {.message_id = PEER_MESSAGE_INVALID};
+  peer_wire_message_t current_peer_wire_message = {.message_id =
+                                                       PEER_MESSAGE_INVALID};
 
   peer_connection_t current_connection = {
       .peer_piece_bitfield = {.bytes = NULL, .length = 0},
@@ -308,9 +310,10 @@ int main(int argc, char *argv[]) {
 
   while (connection_active) {
 
-    free_peer_wire_message(&msg);
+    free_peer_wire_message(&current_peer_wire_message);
 
-    bool received_msg = receive_peer_wire_message(fd, &msg);
+    bool received_msg =
+        receive_peer_wire_message(fd, &current_peer_wire_message);
 
     if (!received_msg) {
       fprintf(stderr, "No valid peer wire message received.\n");
@@ -319,11 +322,11 @@ int main(int argc, char *argv[]) {
       break;
     }
 
-    if (msg.is_keep_alive) {
+    if (current_peer_wire_message.is_keep_alive) {
       continue;
     }
 
-    switch (msg.message_id) {
+    switch (current_peer_wire_message.message_id) {
 
     case PEER_MESSAGE_CHOKE:
       current_connection.peer_choking_us = true;
@@ -340,7 +343,8 @@ int main(int argc, char *argv[]) {
     case PEER_MESSAGE_BITFIELD: {
 
       bool bitfield_payload_applied = bitfield_applied(
-          &current_connection, msg.payload, msg.payload_length, piece_count);
+          &current_connection, current_peer_wire_message.payload,
+          current_peer_wire_message.payload_length, piece_count);
 
       if (!bitfield_payload_applied) {
 
@@ -353,44 +357,11 @@ int main(int argc, char *argv[]) {
       break;
     case PEER_MESSAGE_PIECE: {
 
-      if (!current_piece_state.request_pending) {
+      if (!process_incoming_piece_message(&current_piece_state,
+                                          &current_peer_wire_message)) {
         connection_active = false;
         continue;
       }
-
-      size_t piece_index = 0;
-      size_t begin = 0;
-      size_t block_length = 0;
-      const unsigned char *block_buffer = NULL;
-
-      bool piece_info_determined = determine_piece_info_from_piece_payload(
-          &msg, &piece_index, &begin, &block_buffer, &block_length);
-
-      if (!piece_info_determined) {
-        connection_active = false;
-        continue;
-      }
-
-      // validate piece info
-      if (piece_index != current_piece_state.piece_index ||
-          begin != current_piece_state.requested_begin ||
-          block_length != current_piece_state.requested_length) {
-        connection_active = false;
-        continue;
-      }
-
-      // check overflow.
-      if (begin > current_piece_state.piece_size ||
-          block_length > current_piece_state.piece_size - begin) {
-        connection_active = false;
-        continue;
-      }
-
-      memcpy(current_piece_state.piece_buffer + begin, block_buffer,
-             block_length);
-
-      current_piece_state.bytes_received += block_length;
-      current_piece_state.request_pending = false;
 
       break;
     }
@@ -422,11 +393,10 @@ int main(int argc, char *argv[]) {
       }
 
       if (current_piece_state.bytes_received > current_piece_state.piece_size) {
-
         break;
       }
 
-      // bytes for this piece already received
+      // all bytes for this piece received
       if (current_piece_state.bytes_received ==
           current_piece_state.piece_size) {
         // TODO: SHA1 Check
@@ -468,7 +438,7 @@ int main(int argc, char *argv[]) {
         if (!requested) {
           break;
         }
-        // TODO: update current piece state.
+
         current_piece_state.request_pending = true;
         current_piece_state.requested_length = request_length;
         current_piece_state.requested_begin = request_begin;
@@ -478,7 +448,7 @@ int main(int argc, char *argv[]) {
 
   // Cleanup connection.
   free(current_connection.peer_piece_bitfield.bytes);
-  free_peer_wire_message(&msg);
+  free_peer_wire_message(&current_peer_wire_message);
 
   close(fd);
   free(current_piece_state.piece_buffer);

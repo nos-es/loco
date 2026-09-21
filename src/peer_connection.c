@@ -601,6 +601,50 @@ bool bitfield_applied(peer_connection_t *peer_connection,
   return true;
 }
 
+bool process_incoming_piece_message(piece_download_state_t *current_piece_state,
+                                    peer_wire_message_t *msg) {
+
+  if (current_piece_state == NULL || msg == NULL ||
+      current_piece_state->piece_buffer == NULL) {
+    return false;
+  }
+
+  if (!current_piece_state->request_pending) {
+    return false;
+  }
+
+  size_t piece_index = 0;
+  size_t begin = 0;
+  size_t block_length = 0;
+  const unsigned char *block_buffer = NULL;
+
+  bool piece_info_determined = determine_piece_info_from_piece_payload(
+      msg, &piece_index, &begin, &block_buffer, &block_length);
+
+  if (!piece_info_determined) {
+    return false;
+  }
+
+  // validate piece info
+  if (piece_index != current_piece_state->piece_index ||
+      begin != current_piece_state->requested_begin ||
+      block_length != current_piece_state->requested_length) {
+    return false;
+  }
+
+  // check overflow.
+  if (begin > current_piece_state->piece_size ||
+      block_length > current_piece_state->piece_size - begin) {
+    return false;
+  }
+
+  memcpy(current_piece_state->piece_buffer + begin, block_buffer, block_length);
+
+  current_piece_state->bytes_received += block_length;
+  current_piece_state->request_pending = false;
+  return true;
+}
+
 void free_peer_wire_message(peer_wire_message_t *message) {
   message->message_id = PEER_MESSAGE_INVALID;
   message->is_keep_alive = false;

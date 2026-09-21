@@ -76,6 +76,9 @@ bool peer_send_interested(int file_descriptor);
 bool peer_send_request(int file_descriptor, uint32_t piece_index,
                        uint32_t begin, uint32_t length);
 
+bool process_incoming_piece_message(piece_download_state_t *current_piece_state,
+                                    peer_wire_message_t *msg);
+
 bool determine_piece_info_from_piece_payload(peer_wire_message_t *piece_message,
                                              size_t *out_piece_index,
                                              size_t *out_begin,
