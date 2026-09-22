@@ -5,9 +5,11 @@
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -393,12 +395,14 @@ bool receive_peer_wire_message(int file_descriptor,
   unsigned char prefix_length_buffer[4] = {0};
 
   while (received_total < prefix_byte_length) {
-
+    printf("Waiting for peer message...\n");
     ssize_t received =
         recv(file_descriptor, prefix_length_buffer + received_total,
              prefix_byte_length - received_total, 0);
 
+    printf("received value: %zd\n", received);
     if (received == 0) {
+      printf("failed reading length prefix (received 0)\n");
       return false;
     }
 
@@ -408,6 +412,7 @@ bool receive_peer_wire_message(int file_descriptor,
         continue;
       }
 
+      printf("failed reading length prefix (errno)\n");
       return false;
     }
 
@@ -420,6 +425,8 @@ bool receive_peer_wire_message(int file_descriptor,
 
   uint32_t prefix_length = (first_byte << 24) | (second_byte << 16) |
                            (third_byte << 8) | fourth_byte;
+
+  printf("Prefix Length: %" PRIu32 "\n", prefix_length);
 
   // Keep-Alive-Message
   if (prefix_length == 0) {
@@ -442,6 +449,7 @@ bool receive_peer_wire_message(int file_descriptor,
         recv(file_descriptor, message_id_buffer, message_id_length, 0);
 
     if (received == 0) {
+      printf("Failed reading message id\n");
       return false;
     }
 
@@ -451,6 +459,7 @@ bool receive_peer_wire_message(int file_descriptor,
         continue;
       }
 
+      printf("Failed reading message id\n");
       return false;
     }
 
@@ -458,15 +467,19 @@ bool receive_peer_wire_message(int file_descriptor,
   }
 
   if (message_id_buffer[0] >= PEER_MESSAGE_INVALID) {
+    printf("Unsupported message id: %u\n", (unsigned int)message_id_buffer[0]);
     // Unsupported message id.
     return false;
   }
+
+  printf("message id: %u\n", (unsigned int)message_id_buffer[0]);
 
   size_t payload_length = prefix_length - message_id_length;
   enum MessageId message_id = (enum MessageId)message_id_buffer[0];
 
   if (payload_length > MAX_PAYLOAD_LENGTH ||
       !is_valid_payload_length_for_message(payload_length, message_id)) {
+    printf("Invalid payload length\n");
     return false;
   }
 
@@ -484,6 +497,7 @@ bool receive_peer_wire_message(int file_descriptor,
   unsigned char *payload_buffer = malloc(payload_length);
 
   if (payload_buffer == NULL) {
+    printf("Failed allocating payload\n");
     return false;
   }
 
@@ -493,6 +507,7 @@ bool receive_peer_wire_message(int file_descriptor,
                             payload_length - received_total, 0);
 
     if (received == 0) {
+      printf("Failed reading payload\n");
       free(payload_buffer);
       return false;
     }
@@ -503,6 +518,7 @@ bool receive_peer_wire_message(int file_descriptor,
         continue;
       }
 
+      printf("Failed reading payload\n");
       free(payload_buffer);
       return false;
     }
@@ -552,6 +568,62 @@ bool determine_piece_info_from_piece_payload(peer_wire_message_t *piece_message,
   *out_begin = (size_t)begin;
   *out_block = piece_message->payload + 8;
   *out_block_length = piece_message->payload_length - 8;
+
+  return true;
+}
+bool update_bitfield(peer_connection_t *peer_connection,
+                     const unsigned char *received_have_payload,
+                     const size_t payload_length, const size_t piece_count) {
+
+  if (peer_connection == NULL || received_have_payload == NULL ||
+      payload_length != PEER_MESSAGE_HAVE_PAYLOAD_LENGTH) {
+    return false;
+  }
+
+  unsigned char piece_index_buffer[PEER_MESSAGE_HAVE_PAYLOAD_LENGTH];
+  memcpy(piece_index_buffer, received_have_payload,
+         PEER_MESSAGE_HAVE_PAYLOAD_LENGTH);
+
+  uint32_t piece_index_wire = ((uint32_t)piece_index_buffer[0] << 24) |
+                              ((uint32_t)piece_index_buffer[1] << 16) |
+                              ((uint32_t)piece_index_buffer[2] << 8) |
+                              ((uint32_t)piece_index_buffer[3]);
+
+  size_t piece_index = (size_t)piece_index_wire;
+
+  if (piece_index >= piece_count) {
+    return false;
+  }
+
+  size_t bitfield_length = (piece_count + 7) / 8;
+
+  if (peer_connection->peer_piece_bitfield.bytes != NULL &&
+      peer_connection->peer_piece_bitfield.length != bitfield_length) {
+    return false;
+  }
+  if (peer_connection->peer_piece_bitfield.bytes == NULL &&
+      peer_connection->peer_piece_bitfield.length != 0) {
+    return false;
+  }
+
+  // Initialize bitfield if not existing.
+  if (peer_connection->peer_piece_bitfield.bytes == NULL) {
+
+    unsigned char *temp_bitfield =
+        calloc(bitfield_length, sizeof(unsigned char));
+
+    if (temp_bitfield == NULL) {
+      return false;
+    }
+
+    peer_connection->peer_piece_bitfield.bytes = temp_bitfield;
+    peer_connection->peer_piece_bitfield.length = bitfield_length;
+  }
+
+  size_t byte_index = piece_index / 8;
+  size_t bit_position = piece_index % 8;
+  unsigned char mask = 0x80 >> bit_position;
+  peer_connection->peer_piece_bitfield.bytes[byte_index] |= mask;
 
   return true;
 }

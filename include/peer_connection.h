@@ -11,6 +11,7 @@ enum {
   HANDSHAKE_BYTES_LENGTH = 68,
   PEER_MESSAGE_INTERESTED_LENGTH = 5,
   PEER_MESSAGE_REQUEST_LENGTH = 17,
+  PEER_MESSAGE_HAVE_PAYLOAD_LENGTH = 4,
   LENGTH_PREFIX_SIZE = 4,
   DEFAULT_REQUEST_BLOCK_SIZE = 16384,
   MAX_PAYLOAD_LENGTH = 1048576,
@@ -70,6 +71,10 @@ bool receive_peer_wire_message(int file_descriptor,
 bool bitfield_applied(peer_connection_t *peer_connection,
                       const unsigned char *received_bitfield_payload,
                       const size_t payload_length, const size_t piece_count);
+
+bool update_bitfield(peer_connection_t *peer_connection,
+                     const unsigned char *received_bitfield_payload,
+                     const size_t payload_length, const size_t piece_count);
 
 bool peer_send_interested(int file_descriptor);
 
