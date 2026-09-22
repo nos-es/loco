@@ -274,6 +274,7 @@ int main(int argc, char *argv[]) {
   }
 
   bool connection_active = true;
+  bool download_complete = false;
   size_t total_file_size = (size_t)torrent_info->length;
   size_t normal_piece_size = (size_t)torrent_info->piece_length;
   peer_wire_message_t current_peer_wire_message = {.message_id =
@@ -363,6 +364,13 @@ int main(int argc, char *argv[]) {
       break;
     case PEER_MESSAGE_BITFIELD: {
 
+      printf("Bitfield received from Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8
+             ".%" PRIu8 ":%" PRIu16 "\n",
+             current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
+             current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
+             current_peers[0].port);
+      printf("\n");
+
       bool bitfield_payload_applied = bitfield_applied(
           &current_connection, current_peer_wire_message.payload,
           current_peer_wire_message.payload_length, piece_count);
@@ -383,6 +391,10 @@ int main(int argc, char *argv[]) {
         connection_active = false;
         continue;
       }
+      printf("Received block: piece %zu, begin %zu, length %zu\n",
+             current_piece_state.piece_index,
+             current_piece_state.requested_begin,
+             current_piece_state.requested_length);
 
       break;
     }
@@ -394,6 +406,9 @@ int main(int argc, char *argv[]) {
 
     // all bytes for this piece received
     if (current_piece_state.bytes_received == current_piece_state.piece_size) {
+
+      printf("Piece %zu complete\n", current_piece_state.piece_index);
+
       size_t sha1_offset_current_piece_index =
           current_piece_state.piece_index * 20;
 
@@ -418,7 +433,7 @@ int main(int argc, char *argv[]) {
         break;
       }
 
-      // TODO: write piece in file
+      printf("Piece %zu SHA1 valid\n", current_piece_state.piece_index);
 
       if (current_piece_state.piece_index != 0) {
 
@@ -438,7 +453,50 @@ int main(int argc, char *argv[]) {
         break;
       }
 
-      break;
+      size_t written_elements =
+          fwrite(current_piece_state.piece_buffer, sizeof(unsigned char),
+                 current_piece_state.piece_size, fp);
+
+      if (written_elements != current_piece_state.piece_size) {
+        break;
+      }
+      printf("Piece %zu written\n", current_piece_state.piece_index);
+
+      current_piece_state.piece_index++;
+      current_piece_state.request_pending = false;
+      current_piece_state.requested_length = 0;
+      current_piece_state.requested_begin = 0;
+      current_piece_state.bytes_received = 0;
+
+      // if true, last piece written
+      if (current_piece_state.piece_index >= piece_count) {
+        printf("Download complete\n");
+        download_complete = true;
+        break;
+      }
+
+      // Last piece next?
+      size_t last_index = piece_count - 1;
+      if (current_piece_state.piece_index == last_index) {
+
+        if (last_index != 0) {
+
+          // if true, then size_t overflow.
+          if (normal_piece_size > SIZE_MAX / last_index) {
+            break;
+          }
+        }
+
+        size_t offset_last_piece = normal_piece_size * last_index;
+
+        if (offset_last_piece > total_file_size) {
+          break;
+        }
+
+        size_t remaining_piece_size = total_file_size - offset_last_piece;
+
+        current_piece_state.piece_size = remaining_piece_size;
+      }
     }
 
     // bitfield exists from this peer.
@@ -471,6 +529,7 @@ int main(int argc, char *argv[]) {
         if (!interested_sent) {
           break;
         }
+        printf("Interested sent\n");
         current_connection.we_are_interested = true;
       }
 
@@ -494,6 +553,9 @@ int main(int argc, char *argv[]) {
           break;
         }
 
+        printf("Request: piece %zu, begin %zu, length %zu\n",
+               current_piece_state.piece_index, request_begin, request_length);
+
         bool requested = peer_send_request(
             fd, (uint32_t)current_piece_state.piece_index,
             (uint32_t)request_begin, (uint32_t)request_length);
@@ -510,6 +572,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Cleanup connection.
+  fclose(fp);
   free(current_connection.peer_piece_bitfield.bytes);
   free_peer_wire_message(&current_peer_wire_message);
 
