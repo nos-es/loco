@@ -201,6 +201,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  printf("Connecting to first peer...\n");
   int fd = connect_to_peer(&current_peers[0]);
 
   if (fd < 0) {
@@ -360,8 +361,22 @@ int main(int argc, char *argv[]) {
       break;
     case PEER_MESSAGE_NOT_INTERESTED:
       break;
-    case PEER_MESSAGE_HAVE:
+    case PEER_MESSAGE_HAVE: {
+      bool bitfield_set = update_bitfield(
+          &current_connection, current_peer_wire_message.payload,
+          current_peer_wire_message.payload_length, piece_count);
+
+      if (!bitfield_set) {
+        printf("Have failed.\n");
+
+        connection_active = false;
+        continue;
+      }
+
+      printf("Have received...\n");
+
       break;
+    }
     case PEER_MESSAGE_BITFIELD: {
 
       printf("Bitfield received from Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8
@@ -517,6 +532,8 @@ int main(int argc, char *argv[]) {
       // Peer does not have current piece.
       if ((current_connection.peer_piece_bitfield.bytes[byte_index] & mask) ==
           0) {
+        printf("Peer does not have current piece %zu.\n",
+               current_piece_state.piece_index);
         break;
       }
 

@@ -590,6 +590,7 @@ bool update_bitfield(peer_connection_t *peer_connection,
                               ((uint32_t)piece_index_buffer[3]);
 
   size_t piece_index = (size_t)piece_index_wire;
+  printf("Peer sent HAVE message for Piece %zu\n", piece_index);
 
   if (piece_index >= piece_count) {
     return false;
