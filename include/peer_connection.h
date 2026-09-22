@@ -55,8 +55,8 @@ typedef struct PieceDownloadState {
   unsigned char *piece_buffer;
   size_t bytes_received;
   bool request_pending;
-  uint32_t requested_begin;
-  uint32_t requested_length;
+  size_t requested_begin;
+  size_t requested_length;
 } piece_download_state_t;
 
 int connect_to_peer(const peer_t *peer);
