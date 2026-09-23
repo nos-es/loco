@@ -534,7 +534,7 @@ int main(int argc, char *argv[]) {
           0) {
         printf("Peer does not have current piece %zu.\n",
                current_piece_state.piece_index);
-        break;
+        continue;
       }
 
       if (current_piece_state.bytes_received > current_piece_state.piece_size) {
