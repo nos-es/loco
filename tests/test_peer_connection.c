@@ -648,6 +648,68 @@ test_process_incoming_piece_message_processes_piece_message_correctly(
   return MUNIT_OK;
 }
 
+static MunitResult test_process_incoming_piece_message_rejects_null_parameter(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char payload_buffer[] = {0x00, 0x00, 0x00, 0x02, 0x00,
+                                    0x00, 0x00, 0x00, 0xFF, 0xFF};
+
+  size_t payload_length = sizeof(payload_buffer);
+
+  peer_wire_message_t test_msg = {.message_id = PEER_MESSAGE_PIECE,
+                                  .payload = payload_buffer,
+                                  .payload_length = payload_length,
+                                  .is_keep_alive = false};
+
+  bool processed = process_incoming_piece_message(NULL, &test_msg);
+
+  munit_assert_false(processed);
+
+  return MUNIT_OK;
+}
+
+static MunitResult test_process_incoming_piece_message_rejects_not_requested(
+    const MunitParameter params[], void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  unsigned char payload_buffer[] = {0x00, 0x00, 0x00, 0x02, 0x00,
+                                    0x00, 0x00, 0x00, 0xFF, 0xFF};
+
+  size_t payload_length = sizeof(payload_buffer);
+
+  peer_wire_message_t test_msg = {.message_id = PEER_MESSAGE_PIECE,
+                                  .payload = payload_buffer,
+                                  .payload_length = payload_length,
+                                  .is_keep_alive = false};
+
+  unsigned char piece_buffer[DEFAULT_REQUEST_BLOCK_SIZE];
+
+  size_t piece_index = 2;
+  size_t begin = 0;
+  bool test_request_pending = false;
+
+  piece_download_state_t piece_download_state = {.request_pending =
+                                                     test_request_pending,
+                                                 .piece_buffer = piece_buffer,
+                                                 .bytes_received = 0,
+                                                 .piece_size = 16384,
+                                                 .piece_index = piece_index,
+                                                 .requested_begin = begin,
+                                                 .requested_length = 2};
+
+  bool processed =
+      process_incoming_piece_message(&piece_download_state, &test_msg);
+
+  munit_assert_false(processed);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
      test_receive_peer_wire_message_returns_interested_message, NULL, NULL,
@@ -703,6 +765,12 @@ static MunitTest tests[] = {
     {"/process_incoming_piece_message/processes-correctly",
      test_process_incoming_piece_message_processes_piece_message_correctly,
      NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/process_incoming_piece_message/rejects-null_parameter",
+     test_process_incoming_piece_message_rejects_null_parameter, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/process_incoming_piece_message/rejects-request-pending-false",
+     test_process_incoming_piece_message_rejects_not_requested, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
