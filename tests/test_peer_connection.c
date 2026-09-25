@@ -710,6 +710,35 @@ static MunitResult test_process_incoming_piece_message_rejects_not_requested(
   return MUNIT_OK;
 }
 
+static MunitResult
+test_reset_piece_state_resets_piece_state(const MunitParameter params[],
+                                          void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  size_t piece_index = 2;
+  size_t piece_size = 16384;
+
+  piece_download_state_t piece_download_state = {.request_pending = true,
+                                                 .bytes_received = 123,
+                                                 .piece_size = piece_size,
+                                                 .piece_index = piece_index,
+                                                 .requested_begin = 32768,
+                                                 .requested_length = 2};
+
+  reset_piece_state(&piece_download_state);
+
+  munit_assert_size(piece_download_state.piece_index, ==, piece_index);
+  munit_assert_size(piece_download_state.piece_size, ==, piece_size);
+  munit_assert_false(piece_download_state.request_pending);
+  munit_assert_size(piece_download_state.bytes_received, ==, 0);
+  munit_assert_size(piece_download_state.requested_begin, ==, 0);
+  munit_assert_size(piece_download_state.requested_length, ==, 0);
+
+  return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
     {"/receive-peer-wire-message/returns-interested",
      test_receive_peer_wire_message_returns_interested_message, NULL, NULL,
@@ -770,6 +799,9 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/process_incoming_piece_message/rejects-request-pending-false",
      test_process_incoming_piece_message_rejects_not_requested, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/reset_piece_progress/resets-correctly",
+     test_reset_piece_state_resets_piece_state, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 

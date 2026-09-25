@@ -17,6 +17,17 @@
 
 static const unsigned char handshake_protocol[] = "BitTorrent protocol";
 
+void reset_piece_state(piece_download_state_t *piece_state) {
+
+  if (piece_state == NULL) {
+    return;
+  }
+  piece_state->request_pending = false;
+  piece_state->requested_length = 0;
+  piece_state->requested_begin = 0;
+  piece_state->bytes_received = 0;
+}
+
 bool write_uint32_big_endian(unsigned char *buffer, size_t buffer_capacity,
                              uint32_t value) {
 

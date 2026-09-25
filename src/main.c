@@ -441,10 +441,7 @@ int main(int argc, char *argv[]) {
 
       if (memcmp(current_piece_sha1, current_piece_hash_from_torrent_info,
                  PIECE_SHA1_LENGTH) != 0) {
-        current_piece_state.request_pending = false;
-        current_piece_state.requested_length = 0;
-        current_piece_state.requested_begin = 0;
-        current_piece_state.bytes_received = 0;
+        reset_piece_state(&current_piece_state);
         break;
       }
 
@@ -478,10 +475,7 @@ int main(int argc, char *argv[]) {
       printf("Piece %zu written\n", current_piece_state.piece_index);
 
       current_piece_state.piece_index++;
-      current_piece_state.request_pending = false;
-      current_piece_state.requested_length = 0;
-      current_piece_state.requested_begin = 0;
-      current_piece_state.bytes_received = 0;
+      reset_piece_state(&current_piece_state);
 
       // if true, last piece written
       if (current_piece_state.piece_index >= piece_count) {

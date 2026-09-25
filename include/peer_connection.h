@@ -90,4 +90,6 @@ bool determine_piece_info_from_piece_payload(peer_wire_message_t *piece_message,
                                              const unsigned char **out_block,
                                              size_t *out_block_length);
 
+void reset_piece_state(piece_download_state_t *piece_state);
+
 void free_peer_wire_message(peer_wire_message_t *message);
