@@ -201,47 +201,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  printf("Connecting to first peer...\n");
-  int fd = connect_to_peer(&current_peers[0]);
-
-  if (fd < 0) {
-    fprintf(stderr, "Peer connection failed.\n");
-    free(current_peers);
-    free_bencode_object(&response_obj);
-    free(tracker_response.data);
-    free_bencode_object(&obj);
-    free_buffer(&buffer);
-    return 1;
-  }
-
-  printf("Connected to Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8
-         ":%" PRIu16 "",
-         current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
-         current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
-         current_peers[0].port);
-  printf("\n");
-
-  bool handshake_success = handshake_with_peer(fd, &info_hash, &peer_id);
-
-  if (!handshake_success) {
-    fprintf(stderr, "Handshake failed.\n");
-    close(fd);
-    free(current_peers);
-    free_bencode_object(&response_obj);
-    free(tracker_response.data);
-    free_bencode_object(&obj);
-    free_buffer(&buffer);
-    return 1;
-  }
-  printf("Handshake with Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8
-         ":%" PRIu16 " successful!\n",
-         current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
-         current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
-         current_peers[0].port);
-  printf("\n");
-
   if (torrent_info->piece_length <= 0 || torrent_info->length < 0) {
-    close(fd);
     free(current_peers);
     free_bencode_object(&response_obj);
     free(tracker_response.data);
@@ -252,7 +212,6 @@ int main(int argc, char *argv[]) {
 
   if ((uintmax_t)torrent_info->piece_length > (uintmax_t)SIZE_MAX ||
       (uintmax_t)torrent_info->length > (uintmax_t)SIZE_MAX) {
-    close(fd);
     free(current_peers);
     free_bencode_object(&response_obj);
     free(tracker_response.data);
@@ -265,7 +224,25 @@ int main(int argc, char *argv[]) {
 
   if (piece_count == 0) {
     fprintf(stderr, "Piece count is 0.\n");
-    close(fd);
+    free(current_peers);
+    free_bencode_object(&response_obj);
+    free(tracker_response.data);
+    free_bencode_object(&obj);
+    free_buffer(&buffer);
+    return 1;
+  }
+
+  // Create and open file.
+  size_t filepath_length = torrent_info->name.length;
+  char filepath[filepath_length + 1];
+
+  memcpy(filepath, torrent_info->name.data, torrent_info->name.length);
+  filepath[filepath_length] = '\0';
+
+  FILE *fp = fopen(filepath, "wb");
+
+  if (fp == NULL) {
+    fprintf(stderr, "Creating file failed.\n");
     free(current_peers);
     free_bencode_object(&response_obj);
     free(tracker_response.data);
@@ -278,15 +255,6 @@ int main(int argc, char *argv[]) {
   bool download_complete = false;
   size_t total_file_size = (size_t)torrent_info->length;
   size_t normal_piece_size = (size_t)torrent_info->piece_length;
-  peer_wire_message_t current_peer_wire_message = {.message_id =
-                                                       PEER_MESSAGE_INVALID};
-
-  peer_connection_t current_connection = {
-      .peer_piece_bitfield = {.bytes = NULL, .length = 0},
-      .peer = current_peers[0],
-      .peer_choking_us = true,
-      .we_are_interested = false,
-      .socket = fd};
 
   size_t first_piece_size = normal_piece_size;
 
@@ -298,27 +266,7 @@ int main(int argc, char *argv[]) {
 
   if (piece_buffer == NULL) {
     fprintf(stderr, "Buffer memory for pieces could not be allocated.\n");
-    close(fd);
-    free(current_peers);
-    free_bencode_object(&response_obj);
-    free(tracker_response.data);
-    free_bencode_object(&obj);
-    free_buffer(&buffer);
-    return 1;
-  }
-
-  size_t filepath_length = torrent_info->name.length;
-  char filepath[filepath_length + 1];
-
-  memcpy(filepath, torrent_info->name.data, torrent_info->name.length);
-  filepath[filepath_length] = '\0';
-
-  FILE *fp = fopen(filepath, "wb");
-
-  if (fp == NULL) {
-    fprintf(stderr, "Creating file failed.\n");
-    close(fd);
-    free(piece_buffer);
+    fclose(fp);
     free(current_peers);
     free_bencode_object(&response_obj);
     free(tracker_response.data);
@@ -331,263 +279,328 @@ int main(int argc, char *argv[]) {
                                                 .piece_size = first_piece_size,
                                                 .piece_buffer = piece_buffer};
 
-  while (connection_active) {
+  // Here for loop for peers?
+  // TODO: Instead of return 1 clean up and switch peer.
+  // Connecting to a peer:
 
-    free_peer_wire_message(&current_peer_wire_message);
+  for (size_t i = 0; i < peer_count; i++) {
 
-    bool received_msg =
-        receive_peer_wire_message(fd, &current_peer_wire_message);
-
-    if (!received_msg) {
-      fprintf(stderr, "No valid peer wire message received.\n");
-
-      connection_active = false;
+    if (download_complete) {
       break;
     }
 
-    if (current_peer_wire_message.is_keep_alive) {
+    printf("Connecting to Peer %zu ...\n", i);
+    int fd = connect_to_peer(&current_peers[i]);
+
+    if (fd < 0) {
+      fprintf(stderr, "Peer connection failed.\n");
+      reset_piece_state(&current_piece_state);
       continue;
     }
 
-    switch (current_peer_wire_message.message_id) {
+    peer_connection_t current_connection = {
+        .peer_piece_bitfield = {.bytes = NULL, .length = 0},
+        .peer = current_peers[i],
+        .peer_choking_us = true,
+        .we_are_interested = false,
+        .socket = fd};
 
-    case PEER_MESSAGE_CHOKE:
-      current_connection.peer_choking_us = true;
-      break;
-    case PEER_MESSAGE_UNCHOKE:
-      current_connection.peer_choking_us = false;
-      break;
-    case PEER_MESSAGE_INTERESTED:
-      break;
-    case PEER_MESSAGE_NOT_INTERESTED:
-      break;
-    case PEER_MESSAGE_HAVE: {
-      bool bitfield_set = update_bitfield(
-          &current_connection, current_peer_wire_message.payload,
-          current_peer_wire_message.payload_length, piece_count);
+    printf("Connected to Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8
+           ":%" PRIu16 "",
+           current_peers[i].ipv4_address[0], current_peers[i].ipv4_address[1],
+           current_peers[i].ipv4_address[2], current_peers[i].ipv4_address[3],
+           current_peers[i].port);
+    printf("\n");
 
-      if (!bitfield_set) {
-        printf("Have failed.\n");
+    bool handshake_success = handshake_with_peer(fd, &info_hash, &peer_id);
+
+    if (!handshake_success) {
+      fprintf(stderr, "Handshake failed.\n");
+      reset_piece_state(&current_piece_state);
+      close(current_connection.socket);
+      continue;
+    }
+
+    printf("Handshake with Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8
+           ":%" PRIu16 " successful!\n",
+           current_peers[i].ipv4_address[0], current_peers[i].ipv4_address[1],
+           current_peers[i].ipv4_address[2], current_peers[i].ipv4_address[3],
+           current_peers[i].port);
+    printf("\n");
+
+    peer_wire_message_t current_peer_wire_message = {.message_id =
+                                                         PEER_MESSAGE_INVALID};
+    // Trying to get piece from current peer.
+    while (connection_active) {
+
+      free_peer_wire_message(&current_peer_wire_message);
+
+      bool received_msg =
+          receive_peer_wire_message(fd, &current_peer_wire_message);
+
+      if (!received_msg) {
+        fprintf(stderr, "No valid peer wire message received.\n");
 
         connection_active = false;
-        continue;
-      }
-
-      printf("Have received...\n");
-
-      break;
-    }
-    case PEER_MESSAGE_BITFIELD: {
-
-      printf("Bitfield received from Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8
-             ".%" PRIu8 ":%" PRIu16 "\n",
-             current_peers[0].ipv4_address[0], current_peers[0].ipv4_address[1],
-             current_peers[0].ipv4_address[2], current_peers[0].ipv4_address[3],
-             current_peers[0].port);
-      printf("\n");
-
-      bool bitfield_payload_applied = bitfield_applied(
-          &current_connection, current_peer_wire_message.payload,
-          current_peer_wire_message.payload_length, piece_count);
-
-      if (!bitfield_payload_applied) {
-
-        connection_active = false;
-        continue;
-      }
-      break;
-    }
-    case PEER_MESSAGE_REQUEST:
-      break;
-    case PEER_MESSAGE_PIECE: {
-
-      if (!process_incoming_piece_message(&current_piece_state,
-                                          &current_peer_wire_message)) {
-        connection_active = false;
-        continue;
-      }
-      printf("Received block: piece %zu, begin %zu, length %zu\n",
-             current_piece_state.piece_index,
-             current_piece_state.requested_begin,
-             current_piece_state.requested_length);
-
-      break;
-    }
-    case PEER_MESSAGE_CANCEL:
-      break;
-    case PEER_MESSAGE_INVALID:
-      break;
-    }
-
-    // all bytes for this piece received
-    if (current_piece_state.bytes_received == current_piece_state.piece_size) {
-
-      printf("Piece %zu complete\n", current_piece_state.piece_index);
-
-      size_t sha1_offset_current_piece_index =
-          current_piece_state.piece_index * 20;
-
-      if (sha1_offset_current_piece_index > torrent_info->pieces.length - 20) {
         break;
       }
 
-      const unsigned char *current_piece_hash_from_torrent_info =
-          torrent_info->pieces.data + sha1_offset_current_piece_index;
+      if (current_peer_wire_message.is_keep_alive) {
+        continue;
+      }
 
-      unsigned char current_piece_sha1[PIECE_SHA1_LENGTH];
+      switch (current_peer_wire_message.message_id) {
 
-      SHA1(current_piece_state.piece_buffer, current_piece_state.piece_size,
-           current_piece_sha1);
+      case PEER_MESSAGE_CHOKE:
+        current_connection.peer_choking_us = true;
+        break;
+      case PEER_MESSAGE_UNCHOKE:
+        current_connection.peer_choking_us = false;
+        break;
+      case PEER_MESSAGE_INTERESTED:
+        break;
+      case PEER_MESSAGE_NOT_INTERESTED:
+        break;
+      case PEER_MESSAGE_HAVE: {
+        bool bitfield_set = update_bitfield(
+            &current_connection, current_peer_wire_message.payload,
+            current_peer_wire_message.payload_length, piece_count);
 
-      if (memcmp(current_piece_sha1, current_piece_hash_from_torrent_info,
-                 PIECE_SHA1_LENGTH) != 0) {
-        reset_piece_state(&current_piece_state);
+        if (!bitfield_set) {
+          printf("Have failed.\n");
+
+          connection_active = false;
+          continue;
+        }
+
+        printf("Have received...\n");
+
+        break;
+      }
+      case PEER_MESSAGE_BITFIELD: {
+
+        printf("Bitfield received from Peer: %" PRIu8 ".%" PRIu8 ".%" PRIu8
+               ".%" PRIu8 ":%" PRIu16 "\n",
+               current_peers[i].ipv4_address[0],
+               current_peers[i].ipv4_address[1],
+               current_peers[i].ipv4_address[2],
+               current_peers[i].ipv4_address[3], current_peers[i].port);
+        printf("\n");
+
+        bool bitfield_payload_applied = bitfield_applied(
+            &current_connection, current_peer_wire_message.payload,
+            current_peer_wire_message.payload_length, piece_count);
+
+        if (!bitfield_payload_applied) {
+
+          connection_active = false;
+          continue;
+        }
+        break;
+      }
+      case PEER_MESSAGE_REQUEST:
+        break;
+      case PEER_MESSAGE_PIECE: {
+
+        if (!process_incoming_piece_message(&current_piece_state,
+                                            &current_peer_wire_message)) {
+          connection_active = false;
+          continue;
+        }
+        printf("Received block: piece %zu, begin %zu, length %zu\n",
+               current_piece_state.piece_index,
+               current_piece_state.requested_begin,
+               current_piece_state.requested_length);
+
+        break;
+      }
+      case PEER_MESSAGE_CANCEL:
+        break;
+      case PEER_MESSAGE_INVALID:
         break;
       }
 
-      printf("Piece %zu SHA1 valid\n", current_piece_state.piece_index);
+      // all bytes for this piece received
+      if (current_piece_state.bytes_received ==
+          current_piece_state.piece_size) {
 
-      if (current_piece_state.piece_index != 0) {
+        printf("Piece %zu complete\n", current_piece_state.piece_index);
 
-        // if true, then size_t overflow.
-        if (normal_piece_size > SIZE_MAX / current_piece_state.piece_index) {
+        size_t sha1_offset_current_piece_index =
+            current_piece_state.piece_index * 20;
+
+        if (sha1_offset_current_piece_index >
+            torrent_info->pieces.length - 20) {
           break;
         }
-      }
 
-      size_t file_offset = current_piece_state.piece_index * normal_piece_size;
+        const unsigned char *current_piece_hash_from_torrent_info =
+            torrent_info->pieces.data + sha1_offset_current_piece_index;
 
-      if (file_offset > LONG_MAX) {
-        break;
-      }
+        unsigned char current_piece_sha1[PIECE_SHA1_LENGTH];
 
-      if (fseek(fp, (long)file_offset, SEEK_SET) != 0) {
-        break;
-      }
+        SHA1(current_piece_state.piece_buffer, current_piece_state.piece_size,
+             current_piece_sha1);
 
-      size_t written_elements =
-          fwrite(current_piece_state.piece_buffer, sizeof(unsigned char),
-                 current_piece_state.piece_size, fp);
+        if (memcmp(current_piece_sha1, current_piece_hash_from_torrent_info,
+                   PIECE_SHA1_LENGTH) != 0) {
+          reset_piece_state(&current_piece_state);
+          break;
+        }
 
-      if (written_elements != current_piece_state.piece_size) {
-        break;
-      }
-      printf("Piece %zu written\n", current_piece_state.piece_index);
+        printf("Piece %zu SHA1 valid\n", current_piece_state.piece_index);
 
-      current_piece_state.piece_index++;
-      reset_piece_state(&current_piece_state);
-
-      // if true, last piece written
-      if (current_piece_state.piece_index >= piece_count) {
-        printf("Download complete\n");
-        download_complete = true;
-        break;
-      }
-
-      // Last piece next?
-      size_t last_index = piece_count - 1;
-      if (current_piece_state.piece_index == last_index) {
-
-        if (last_index != 0) {
+        if (current_piece_state.piece_index != 0) {
 
           // if true, then size_t overflow.
-          if (normal_piece_size > SIZE_MAX / last_index) {
+          if (normal_piece_size > SIZE_MAX / current_piece_state.piece_index) {
             break;
           }
         }
 
-        size_t offset_last_piece = normal_piece_size * last_index;
+        size_t file_offset =
+            current_piece_state.piece_index * normal_piece_size;
 
-        if (offset_last_piece > total_file_size) {
+        if (file_offset > LONG_MAX) {
           break;
         }
 
-        size_t remaining_piece_size = total_file_size - offset_last_piece;
+        if (fseek(fp, (long)file_offset, SEEK_SET) != 0) {
+          break;
+        }
 
-        current_piece_state.piece_size = remaining_piece_size;
+        size_t written_elements =
+            fwrite(current_piece_state.piece_buffer, sizeof(unsigned char),
+                   current_piece_state.piece_size, fp);
+
+        if (written_elements != current_piece_state.piece_size) {
+          break;
+        }
+        printf("Piece %zu written\n", current_piece_state.piece_index);
+
+        current_piece_state.piece_index++;
+        reset_piece_state(&current_piece_state);
+
+        // if true, last piece written
+        if (current_piece_state.piece_index >= piece_count) {
+          printf("Download complete\n");
+          download_complete = true;
+          break;
+        }
+
+        // Last piece next?
+        size_t last_index = piece_count - 1;
+        if (current_piece_state.piece_index == last_index) {
+
+          if (last_index != 0) {
+
+            // if true, then size_t overflow.
+            if (normal_piece_size > SIZE_MAX / last_index) {
+              break;
+            }
+          }
+
+          size_t offset_last_piece = normal_piece_size * last_index;
+
+          if (offset_last_piece > total_file_size) {
+            break;
+          }
+
+          size_t remaining_piece_size = total_file_size - offset_last_piece;
+
+          current_piece_state.piece_size = remaining_piece_size;
+        }
+      }
+
+      // bitfield exists from this peer.
+      if (current_connection.peer_piece_bitfield.bytes != NULL) {
+
+        if (current_piece_state.piece_index >= piece_count) {
+          break;
+        }
+
+        size_t byte_index = current_piece_state.piece_index / 8;
+        size_t bit_position = current_piece_state.piece_index % 8;
+        unsigned char mask = 0x80 >> bit_position;
+
+        if (byte_index >= current_connection.peer_piece_bitfield.length) {
+          break;
+        }
+
+        // Peer does not have current piece.
+        if ((current_connection.peer_piece_bitfield.bytes[byte_index] & mask) ==
+            0) {
+          printf("Peer does not have current piece %zu.\n",
+                 current_piece_state.piece_index);
+          break;
+        }
+
+        if (current_piece_state.bytes_received >
+            current_piece_state.piece_size) {
+          break;
+        }
+
+        if (current_connection.we_are_interested == false) {
+          bool interested_sent = peer_send_interested(fd);
+          if (!interested_sent) {
+            break;
+          }
+          printf("Interested sent\n");
+          current_connection.we_are_interested = true;
+        }
+
+        // When true send request.
+        if (current_connection.we_are_interested == true &&
+            current_connection.peer_choking_us == false &&
+            current_piece_state.request_pending == false) {
+
+          size_t remaining = current_piece_state.piece_size -
+                             current_piece_state.bytes_received;
+          size_t request_begin = current_piece_state.bytes_received;
+          size_t request_length = DEFAULT_REQUEST_BLOCK_SIZE;
+
+          if (remaining < DEFAULT_REQUEST_BLOCK_SIZE) {
+            request_length = remaining;
+          }
+
+          // check uint32_t overflow before sending request.
+          if (current_piece_state.piece_index > UINT32_MAX ||
+              current_piece_state.bytes_received > UINT32_MAX) {
+            break;
+          }
+
+          printf("Request: piece %zu, begin %zu, length %zu\n",
+                 current_piece_state.piece_index, request_begin,
+                 request_length);
+
+          bool requested = peer_send_request(
+              fd, (uint32_t)current_piece_state.piece_index,
+              (uint32_t)request_begin, (uint32_t)request_length);
+
+          if (!requested) {
+            break;
+          }
+
+          current_piece_state.request_pending = true;
+          current_piece_state.requested_length = request_length;
+          current_piece_state.requested_begin = request_begin;
+        }
       }
     }
 
-    // bitfield exists from this peer.
-    if (current_connection.peer_piece_bitfield.bytes != NULL) {
-
-      if (current_piece_state.piece_index >= piece_count) {
-        break;
-      }
-
-      size_t byte_index = current_piece_state.piece_index / 8;
-      size_t bit_position = current_piece_state.piece_index % 8;
-      unsigned char mask = 0x80 >> bit_position;
-
-      if (byte_index >= current_connection.peer_piece_bitfield.length) {
-        break;
-      }
-
-      // Peer does not have current piece.
-      if ((current_connection.peer_piece_bitfield.bytes[byte_index] & mask) ==
-          0) {
-        printf("Peer does not have current piece %zu.\n",
-               current_piece_state.piece_index);
-        continue;
-      }
-
-      if (current_piece_state.bytes_received > current_piece_state.piece_size) {
-        break;
-      }
-
-      if (current_connection.we_are_interested == false) {
-        bool interested_sent = peer_send_interested(fd);
-        if (!interested_sent) {
-          break;
-        }
-        printf("Interested sent\n");
-        current_connection.we_are_interested = true;
-      }
-
-      // When true send request.
-      if (current_connection.we_are_interested == true &&
-          current_connection.peer_choking_us == false &&
-          current_piece_state.request_pending == false) {
-
-        size_t remaining =
-            current_piece_state.piece_size - current_piece_state.bytes_received;
-        size_t request_begin = current_piece_state.bytes_received;
-        size_t request_length = DEFAULT_REQUEST_BLOCK_SIZE;
-
-        if (remaining < DEFAULT_REQUEST_BLOCK_SIZE) {
-          request_length = remaining;
-        }
-
-        // check uint32_t overflow before sending request.
-        if (current_piece_state.piece_index > UINT32_MAX ||
-            current_piece_state.bytes_received > UINT32_MAX) {
-          break;
-        }
-
-        printf("Request: piece %zu, begin %zu, length %zu\n",
-               current_piece_state.piece_index, request_begin, request_length);
-
-        bool requested = peer_send_request(
-            fd, (uint32_t)current_piece_state.piece_index,
-            (uint32_t)request_begin, (uint32_t)request_length);
-
-        if (!requested) {
-          break;
-        }
-
-        current_piece_state.request_pending = true;
-        current_piece_state.requested_length = request_length;
-        current_piece_state.requested_begin = request_begin;
-      }
-    }
+    // Clean up connection
+    free(current_connection.peer_piece_bitfield.bytes);
+    free_peer_wire_message(&current_peer_wire_message);
+    reset_piece_state(&current_piece_state);
+    close(current_connection.socket);
+    connection_active = true;
   }
 
   // Cleanup connection.
   fclose(fp);
-  free(current_connection.peer_piece_bitfield.bytes);
-  free_peer_wire_message(&current_peer_wire_message);
+  // free(current_connection.peer_piece_bitfield.bytes);
 
-  close(fd);
+  // close(fd);
   free(current_piece_state.piece_buffer);
   free(current_peers);
   free_bencode_object(&response_obj);
