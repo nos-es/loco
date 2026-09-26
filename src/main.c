@@ -152,6 +152,13 @@ int main(int argc, char *argv[]) {
          "%" PRId64 "\n",
          interval);
 
+  for (size_t i = 0; i < response_obj.value.dictionary.count; i++) {
+    const unsigned char *key =
+        response_obj.value.dictionary.entries[i].key.data;
+    size_t len = response_obj.value.dictionary.entries[i].key.length;
+    printf("%.*s \n", (int)len, key);
+  }
+
   bencode_segment_t peers_segment = {0};
   bool peers_found = find_peers(&response_obj, &peers_segment);
 
@@ -330,6 +337,9 @@ int main(int argc, char *argv[]) {
 
     peer_wire_message_t current_peer_wire_message = {.message_id =
                                                          PEER_MESSAGE_INVALID};
+
+    connection_active = true;
+
     // Trying to get piece from current peer.
     while (connection_active) {
 
@@ -593,7 +603,6 @@ int main(int argc, char *argv[]) {
     free_peer_wire_message(&current_peer_wire_message);
     reset_piece_state(&current_piece_state);
     close(current_connection.socket);
-    connection_active = true;
   }
 
   // Cleanup connection.
