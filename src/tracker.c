@@ -3,19 +3,24 @@
 #include "bencode_types.h"
 #include "info_hash.h"
 #include "peer_id.h"
+#include <arpa/inet.h>
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <curl/typecheck-gcc.h>
 #include <inttypes.h>
+#include <netinet/in.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 
 static const unsigned char interval_key[] = "interval";
 static const unsigned char peers_key[] = "peers";
+static const unsigned char ip_key[] = "ip";
+static const unsigned char port_key[] = "port";
 
 static bool is_valid_peers_ipv4_list(const bencode_segment_t *peers_segment) {
 
@@ -107,6 +112,9 @@ bool parse_peer_from_segment(const bencode_segment_t *peer_segment,
   return true;
 }
 
+static bool is_ipv4(const unsigned char ip_buffer, const size_t buffer_length) {
+}
+
 static const bencode_object_t *
 find_entry_in_dictionary(const bencode_object_t *root,
                          const unsigned char *key_name, size_t key_length,
@@ -163,14 +171,62 @@ bool find_peers(const bencode_object_t *response_obj,
     return false;
   }
 
+  // compact ip list
   const bencode_object_t *entry = find_entry_in_dictionary(
       response_obj, peers_key, sizeof(peers_key) - 1, BYTE_STRING);
 
-  if (entry == NULL) {
+  if (entry != NULL) {
+    *out_peers = entry->value.byte_string;
+    return true;
+  }
+
+  // handle non compact ip list
+  const bencode_object_t *list_entry = find_entry_in_dictionary(
+      response_obj, peers_key, sizeof(peers_key) - 1, LIST);
+
+  if (list_entry == NULL) {
     return false;
   }
-  *out_peers = entry->value.byte_string;
-  return true;
+
+  // TODO: format to bencode_segment_t
+  if (list_entry->type == LIST) {
+    for (size_t i = 0; i < list_entry->value.list.count; i++) {
+      bencode_object_t list_item = list_entry->value.list.items[i];
+      if (list_item.type != DICTIONARY) {
+        continue;
+      }
+      for (size_t j = 0; j < list_item.value.dictionary.count; j++) {
+
+        bencode_dictionary_entry_t entry =
+            list_item.value.dictionary.entries[j];
+
+        const unsigned char *key = entry.key.data;
+        if (entry.key.length != sizeof(ip_key) - 1) {
+          continue;
+        }
+
+        int is_ip_key = memcmp(key, ip_key, sizeof(ip_key) - 1);
+
+        if (is_ip_key == 0) {
+          if (entry.value.type != BYTE_STRING) {
+            continue;
+          }
+
+          char ip[entry.value.value.byte_string.length + 1];
+
+          memcpy(ip, entry.value.value.byte_string.data,
+                 entry.value.value.byte_string.length);
+
+          ip[entry.value.value.byte_string.length] = '\0';
+          struct in_addr address;
+          if (inet_pton(AF_INET, ip, &address) != 1) {
+            continue;
+          }
+        }
+      }
+    }
+  }
+  return false;
 }
 
 bool tracker_announce(const bencode_segment_t *announce,
