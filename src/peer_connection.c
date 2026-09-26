@@ -4,14 +4,18 @@
 #include "tracker.h"
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -60,6 +64,18 @@ int connect_to_peer(const peer_t *peer) {
     return -1;
   }
 
+  int flags = fcntl(file_descriptor, F_GETFL, 0);
+
+  if (flags == -1) {
+    close(file_descriptor);
+    return -1;
+  }
+
+  if (fcntl(file_descriptor, F_SETFL, flags | O_NONBLOCK) == -1) {
+    close(file_descriptor);
+    return -1;
+  }
+
   struct sockaddr_in socket_address = {.sin_family = AF_INET,
                                        .sin_port = htons(peer->port)};
 
@@ -70,6 +86,37 @@ int connect_to_peer(const peer_t *peer) {
               sizeof(socket_address));
 
   if (connect_result == -1) {
+    if (errno != EINPROGRESS) {
+
+      close(file_descriptor);
+      return -1;
+    }
+
+    struct pollfd poll_fd = {.fd = file_descriptor, .events = POLLOUT};
+    int poll_result = poll(&poll_fd, 1, POLL_TIMEOUT_MILLISECONDS);
+
+    if (poll_result <= 0) {
+      close(file_descriptor);
+      return -1;
+    }
+
+    int socket_error = 0;
+    socklen_t socket_error_length = sizeof(socket_error);
+
+    int socket_opt_result = getsockopt(file_descriptor, SOL_SOCKET, SO_ERROR,
+                                       &socket_error, &socket_error_length);
+    if (socket_opt_result != 0) {
+      close(file_descriptor);
+      return -1;
+    }
+
+    if (socket_error != 0) {
+      close(file_descriptor);
+      return -1;
+    }
+  }
+
+  if (fcntl(file_descriptor, F_SETFL, flags) == -1) {
     close(file_descriptor);
     return -1;
   }
