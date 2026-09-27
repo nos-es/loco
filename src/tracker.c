@@ -39,8 +39,88 @@ static bool is_valid_peers_ipv4_list(const bencode_segment_t *peers_segment) {
   return true;
 }
 
-bool peers_extract(const bencode_segment_t *peers_segment, peer_t **out_peers,
-                   size_t *out_peer_count) {
+bool peers_extract_list(const bencode_list_t *list_entry, peer_t **out_peers,
+                        size_t *out_peer_count) {
+
+  if (list_entry == NULL) {
+    return false;
+  }
+  size_t peer_count = 0;
+
+  for (size_t i = 0; i < list_entry->count; i++) {
+    bencode_object_t list_item = list_entry->items[i];
+    if (list_item.type != DICTIONARY) {
+      continue;
+    }
+
+    uint8_t current_peer_ipv4_address[4];
+    uint16_t current_peer_ipv4_port;
+    bool ip_found = false;
+    bool port_found = false;
+
+    for (size_t j = 0; j < list_item.value.dictionary.count; j++) {
+
+      bencode_dictionary_entry_t entry = list_item.value.dictionary.entries[j];
+
+      const unsigned char *key = entry.key.data;
+      // Is ip key?
+      if (entry.key.length == sizeof(ip_key) - 1) {
+        int is_ip_key = memcmp(key, ip_key, sizeof(ip_key) - 1);
+
+        if (is_ip_key == 0) {
+          if (entry.value.type != BYTE_STRING) {
+            continue;
+          }
+
+          char ip[entry.value.value.byte_string.length + 1];
+
+          memcpy(ip, entry.value.value.byte_string.data,
+                 entry.value.value.byte_string.length);
+
+          ip[entry.value.value.byte_string.length] = '\0';
+          struct in_addr address;
+          if (inet_pton(AF_INET, ip, &address) != 1) {
+            continue;
+          }
+          memcpy(current_peer_ipv4_address, &address, 4);
+          ip_found = true;
+        }
+      }
+
+      // port key?
+      if (entry.key.length == sizeof(port_key) - 1) {
+        int is_port_key = memcmp(key, port_key, sizeof(port_key) - 1);
+        if (is_port_key == 0) {
+          if (entry.value.type != INTEGER) {
+            continue;
+          }
+          if (entry.value.value.integer >= 0 &&
+              entry.value.value.integer <= UINT16_MAX) {
+            current_peer_ipv4_port = entry.value.value.integer;
+            port_found = true;
+          } else {
+            continue;
+          }
+        }
+      }
+    }
+
+    if (ip_found && port_found) {
+      char ip_text[INET_ADDRSTRLEN];
+
+      if (inet_ntop(AF_INET, current_peer_ipv4_address, ip_text,
+                    sizeof(ip_text)) != NULL) {
+        printf("IPv4 peer found: %s:%" PRIu16 "\n", ip_text,
+               current_peer_ipv4_port);
+      }
+    }
+  }
+  // TODO: return true when function finished.
+  return false;
+}
+
+bool peers_extract_compact(const bencode_segment_t *peers_segment,
+                           peer_t **out_peers, size_t *out_peer_count) {
 
   if (peers_segment == NULL || out_peers == NULL || out_peer_count == NULL) {
     return false;
@@ -112,9 +192,6 @@ bool parse_peer_from_segment(const bencode_segment_t *peer_segment,
   return true;
 }
 
-static bool is_ipv4(const unsigned char ip_buffer, const size_t buffer_length) {
-}
-
 static const bencode_object_t *
 find_entry_in_dictionary(const bencode_object_t *root,
                          const unsigned char *key_name, size_t key_length,
@@ -166,7 +243,7 @@ bool find_interval(const bencode_object_t *response_obj,
 }
 
 bool find_peers(const bencode_object_t *response_obj,
-                bencode_segment_t *out_peers) {
+                const bencode_object_t **out_peers) {
   if (out_peers == NULL) {
     return false;
   }
@@ -176,56 +253,19 @@ bool find_peers(const bencode_object_t *response_obj,
       response_obj, peers_key, sizeof(peers_key) - 1, BYTE_STRING);
 
   if (entry != NULL) {
-    *out_peers = entry->value.byte_string;
+    *out_peers = entry;
     return true;
   }
 
-  // handle non compact ip list
-  const bencode_object_t *list_entry = find_entry_in_dictionary(
-      response_obj, peers_key, sizeof(peers_key) - 1, LIST);
+  // non compact ip list
+  entry = find_entry_in_dictionary(response_obj, peers_key,
+                                   sizeof(peers_key) - 1, LIST);
 
-  if (list_entry == NULL) {
-    return false;
+  if (entry != NULL) {
+    *out_peers = entry;
+    return true;
   }
 
-  // TODO: format to bencode_segment_t
-  if (list_entry->type == LIST) {
-    for (size_t i = 0; i < list_entry->value.list.count; i++) {
-      bencode_object_t list_item = list_entry->value.list.items[i];
-      if (list_item.type != DICTIONARY) {
-        continue;
-      }
-      for (size_t j = 0; j < list_item.value.dictionary.count; j++) {
-
-        bencode_dictionary_entry_t entry =
-            list_item.value.dictionary.entries[j];
-
-        const unsigned char *key = entry.key.data;
-        if (entry.key.length != sizeof(ip_key) - 1) {
-          continue;
-        }
-
-        int is_ip_key = memcmp(key, ip_key, sizeof(ip_key) - 1);
-
-        if (is_ip_key == 0) {
-          if (entry.value.type != BYTE_STRING) {
-            continue;
-          }
-
-          char ip[entry.value.value.byte_string.length + 1];
-
-          memcpy(ip, entry.value.value.byte_string.data,
-                 entry.value.value.byte_string.length);
-
-          ip[entry.value.value.byte_string.length] = '\0';
-          struct in_addr address;
-          if (inet_pton(AF_INET, ip, &address) != 1) {
-            continue;
-          }
-        }
-      }
-    }
-  }
   return false;
 }
 

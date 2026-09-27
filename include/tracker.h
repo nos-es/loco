@@ -58,7 +58,9 @@ bool tracker_response_parse(const tracker_response_buffer_t *response,
 bool find_interval(const bencode_object_t *response_obj, int64_t *out_interval);
 
 bool find_peers(const bencode_object_t *response_obj,
-                bencode_segment_t *out_peers);
+                const bencode_object_t **out_peers);
 
-bool peers_extract(const bencode_segment_t *peers_segment, peer_t **out_peers,
-                   size_t *out_peer_count);
+bool peers_extract_compact(const bencode_segment_t *peers_segment,
+                           peer_t **out_peers, size_t *out_peer_count);
+bool peers_extract_list(const bencode_list_t *peers_list, peer_t **out_peers,
+                        size_t *out_peer_count);

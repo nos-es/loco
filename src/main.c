@@ -159,8 +159,8 @@ int main(int argc, char *argv[]) {
     printf("%.*s \n", (int)len, key);
   }
 
-  bencode_segment_t peers_segment = {0};
-  bool peers_found = find_peers(&response_obj, &peers_segment);
+  const bencode_object_t *peers_object;
+  bool peers_found = find_peers(&response_obj, &peers_object);
 
   if (!peers_found) {
     fprintf(stderr, "Peers not found.\n");
@@ -171,13 +171,19 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  printf("Peers length: %zu bytes\n", peers_segment.length);
-
   peer_t *current_peers = NULL;
   size_t peer_count = 0;
+  bool peers_extracted = false;
 
-  bool peers_extracted =
-      peers_extract(&peers_segment, &current_peers, &peer_count);
+  if (peers_object->type == BYTE_STRING) {
+    peers_extracted = peers_extract_compact(&peers_object->value.byte_string,
+                                            &current_peers, &peer_count);
+  }
+
+  if (peers_object->type == LIST) {
+    peers_extracted = peers_extract_list(&peers_object->value.list,
+                                         &current_peers, &peer_count);
+  }
 
   if (!peers_extracted) {
     fprintf(stderr, "Peers could not be extracted.\n");
