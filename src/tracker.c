@@ -45,7 +45,31 @@ bool peers_extract_list(const bencode_list_t *list_entry, peer_t **out_peers,
   if (list_entry == NULL) {
     return false;
   }
-  size_t peer_count = 0;
+
+  if (out_peers == NULL || out_peer_count == NULL) {
+    return false;
+  }
+
+  if (list_entry->count > SIZE_MAX / sizeof(peer_t)) {
+    return false;
+  }
+
+  size_t peer_count = list_entry->count;
+
+  // Currently no peers.
+  if (peer_count == 0) {
+    *out_peer_count = 0;
+    *out_peers = NULL;
+    return true;
+  }
+
+  peer_t *temp_peers = malloc(peer_count * sizeof(peer_t));
+
+  if (temp_peers == NULL) {
+    return false;
+  }
+
+  size_t peers_added_count = 0;
 
   for (size_t i = 0; i < list_entry->count; i++) {
     bencode_object_t list_item = list_entry->items[i];
@@ -55,6 +79,7 @@ bool peers_extract_list(const bencode_list_t *list_entry, peer_t **out_peers,
 
     uint8_t current_peer_ipv4_address[4];
     uint16_t current_peer_ipv4_port;
+
     bool ip_found = false;
     bool port_found = false;
 
@@ -68,20 +93,28 @@ bool peers_extract_list(const bencode_list_t *list_entry, peer_t **out_peers,
         int is_ip_key = memcmp(key, ip_key, sizeof(ip_key) - 1);
 
         if (is_ip_key == 0) {
+
           if (entry.value.type != BYTE_STRING) {
             continue;
           }
 
-          char ip[entry.value.value.byte_string.length + 1];
+          if (entry.value.value.byte_string.length >= INET_ADDRSTRLEN) {
+            continue;
+          }
+
+          char ip[INET_ADDRSTRLEN];
 
           memcpy(ip, entry.value.value.byte_string.data,
                  entry.value.value.byte_string.length);
 
           ip[entry.value.value.byte_string.length] = '\0';
+
           struct in_addr address;
+
           if (inet_pton(AF_INET, ip, &address) != 1) {
             continue;
           }
+
           memcpy(current_peer_ipv4_address, &address, 4);
           ip_found = true;
         }
@@ -89,15 +122,21 @@ bool peers_extract_list(const bencode_list_t *list_entry, peer_t **out_peers,
 
       // port key?
       if (entry.key.length == sizeof(port_key) - 1) {
+
         int is_port_key = memcmp(key, port_key, sizeof(port_key) - 1);
+
         if (is_port_key == 0) {
+
           if (entry.value.type != INTEGER) {
             continue;
           }
+
           if (entry.value.value.integer >= 0 &&
               entry.value.value.integer <= UINT16_MAX) {
+
             current_peer_ipv4_port = entry.value.value.integer;
             port_found = true;
+
           } else {
             continue;
           }
@@ -106,17 +145,21 @@ bool peers_extract_list(const bencode_list_t *list_entry, peer_t **out_peers,
     }
 
     if (ip_found && port_found) {
-      char ip_text[INET_ADDRSTRLEN];
 
-      if (inet_ntop(AF_INET, current_peer_ipv4_address, ip_text,
-                    sizeof(ip_text)) != NULL) {
-        printf("IPv4 peer found: %s:%" PRIu16 "\n", ip_text,
-               current_peer_ipv4_port);
-      }
+      peer_t peer = {.port = current_peer_ipv4_port};
+
+      memcpy(peer.ipv4_address, current_peer_ipv4_address,
+             sizeof(current_peer_ipv4_address));
+
+      temp_peers[peers_added_count] = peer;
+      peers_added_count++;
     }
   }
-  // TODO: return true when function finished.
-  return false;
+
+  *out_peer_count = peers_added_count;
+  *out_peers = temp_peers;
+
+  return true;
 }
 
 bool peers_extract_compact(const bencode_segment_t *peers_segment,
