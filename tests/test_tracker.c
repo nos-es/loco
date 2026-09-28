@@ -2,10 +2,13 @@
 #include "bencode_types.h"
 #include "munit.h"
 #include "tracker.h"
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 
 static MunitResult
 test_build_tracker_url_returns_correct_url(const MunitParameter params[],
@@ -800,6 +803,87 @@ test_peers_extract_compact_returns_empty_peers(const MunitParameter params[],
 
   return MUNIT_OK;
 }
+
+static MunitResult
+test_peers_extract_list_returns_ipv4_peers(const MunitParameter params[],
+                                           void *user_data) {
+
+  (void)params;
+  (void)user_data;
+
+  const unsigned char ip_key[] = "ip";
+  const unsigned char port_key[] = "port";
+
+  unsigned char ipv4_address_data[] = "192.168.2.67";
+  size_t ipv4_len = sizeof(ipv4_address_data) - 1;
+  bencode_segment_t ipv4_address = {.data = ipv4_address_data,
+                                    .length = ipv4_len};
+
+  unsigned char ipv6_address_data[] = "2001:db8:3c4d:15::1a2f:1a2b";
+  size_t ipv6_len = sizeof(ipv6_address_data) - 1;
+  bencode_segment_t ipv6_address = {.data = ipv6_address_data,
+                                    .length = ipv6_len};
+
+  bencode_object_t ipv4_obj = {.type = BYTE_STRING,
+                               .value = {.byte_string = ipv4_address}};
+  bencode_object_t ipv4_port_obj = {.type = INTEGER,
+                                    .value = {.integer = 8899}};
+
+  bencode_object_t ipv6_obj = {.type = BYTE_STRING,
+                               .value = {.byte_string = ipv6_address}};
+  bencode_object_t ipv6_port_obj = {.type = INTEGER,
+                                    .value = {.integer = 4277}};
+
+  bencode_dictionary_entry_t ipv4_entry = {.key = {.data = ip_key, 2},
+                                           .value = ipv4_obj};
+
+  bencode_dictionary_entry_t ipv4_port_entry = {.key = {.data = port_key, 4},
+                                                .value = ipv4_port_obj};
+  bencode_dictionary_entry_t ipv4_entries[] = {ipv4_entry, ipv4_port_entry};
+
+  bencode_dictionary_entry_t ipv6_entry = {.key = {.data = ip_key, 2},
+                                           .value = ipv6_obj};
+
+  bencode_dictionary_entry_t ipv6_port_entry = {.key = {.data = port_key, 4},
+                                                .value = ipv6_port_obj};
+  bencode_dictionary_entry_t ipv6_entries[] = {ipv6_entry, ipv6_port_entry};
+
+  bencode_object_t ipv4_address_dictionaries_obj = {
+      .type = DICTIONARY,
+      .value = {.dictionary = {ipv4_entries, .capacity = 2, .count = 2}}};
+
+  bencode_object_t ipv6_address_dictionaries_obj = {
+      .type = DICTIONARY,
+      .value = {.dictionary = {ipv6_entries, .capacity = 2, .count = 2}}};
+
+  bencode_object_t ip_dict_objs[] = {ipv4_address_dictionaries_obj,
+                                     ipv6_address_dictionaries_obj};
+
+  const bencode_list_t peers_list = {
+      .items = ip_dict_objs, .count = 2, .capacity = 2};
+
+  peer_t *peers = {0};
+  size_t peer_count = 0;
+
+  bool peers_extracted = peers_extract_list(&peers_list, &peers, &peer_count);
+
+  munit_assert_true(peers_extracted);
+  munit_assert_size(peer_count, ==, 1);
+  munit_assert_uint16(peers[0].port, ==, ipv4_port_entry.value.value.integer);
+
+  char ip_text[INET_ADDRSTRLEN];
+  if (inet_ntop(AF_INET, peers[0].ipv4_address, ip_text, sizeof(ip_text)) ==
+      NULL) {
+    free(peers);
+    return MUNIT_FAIL;
+  }
+
+  munit_assert_string_equal(ip_text, (char *)ipv4_address_data);
+
+  free(peers);
+
+  return MUNIT_OK;
+}
 static MunitTest tests[] = {
     {"/build_tracker_url/returns-correct-url",
      test_build_tracker_url_returns_correct_url, NULL, NULL,
@@ -879,6 +963,9 @@ static MunitTest tests[] = {
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/peer-extract/returns-empty-peers-list",
      test_peers_extract_compact_returns_empty_peers, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
+    {"/peer-extract_list/returns-peers",
+     test_peers_extract_list_returns_ipv4_peers, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
