@@ -54,8 +54,6 @@ bool read_byte_buffer_from_file(const char *torrent_filepath,
     return false;
   }
 
-  printf("Torrent file opened: %s\n", torrent_filepath);
-
   size_t file_size = 0;
 
   bool file_size_obtained = get_file_size(file, &file_size);
@@ -72,8 +70,6 @@ bool read_byte_buffer_from_file(const char *torrent_filepath,
     return false;
   }
 
-  printf("Torrent file size: %zu bytes\n", file_size);
-
   unsigned char *data = malloc(file_size);
 
   if (data == NULL) {
@@ -83,7 +79,6 @@ bool read_byte_buffer_from_file(const char *torrent_filepath,
   }
 
   size_t fread_size = fread(data, sizeof(unsigned char), file_size, file);
-  printf("fread size: %zu\n", fread_size);
 
   if (fread_size != file_size) {
     fprintf(stderr,
@@ -96,7 +91,6 @@ bool read_byte_buffer_from_file(const char *torrent_filepath,
   out_buffer->length = file_size;
 
   fclose(file);
-  printf("Closed Torrent file\n");
 
   return true;
 }

@@ -453,14 +453,11 @@ bool receive_peer_wire_message(int file_descriptor,
   unsigned char prefix_length_buffer[4] = {0};
 
   while (received_total < prefix_byte_length) {
-    printf("Waiting for peer message...\n");
     ssize_t received =
         recv(file_descriptor, prefix_length_buffer + received_total,
              prefix_byte_length - received_total, 0);
 
-    printf("received value: %zd\n", received);
     if (received == 0) {
-      printf("failed reading length prefix (received 0)\n");
       return false;
     }
 
@@ -470,7 +467,6 @@ bool receive_peer_wire_message(int file_descriptor,
         continue;
       }
 
-      printf("failed reading length prefix (errno)\n");
       return false;
     }
 
@@ -484,7 +480,6 @@ bool receive_peer_wire_message(int file_descriptor,
   uint32_t prefix_length = (first_byte << 24) | (second_byte << 16) |
                            (third_byte << 8) | fourth_byte;
 
-  printf("Prefix Length: %" PRIu32 "\n", prefix_length);
 
   // Keep-Alive-Message
   if (prefix_length == 0) {
@@ -507,7 +502,6 @@ bool receive_peer_wire_message(int file_descriptor,
         recv(file_descriptor, message_id_buffer, message_id_length, 0);
 
     if (received == 0) {
-      printf("Failed reading message id\n");
       return false;
     }
 
@@ -517,7 +511,6 @@ bool receive_peer_wire_message(int file_descriptor,
         continue;
       }
 
-      printf("Failed reading message id\n");
       return false;
     }
 
@@ -525,19 +518,16 @@ bool receive_peer_wire_message(int file_descriptor,
   }
 
   if (message_id_buffer[0] >= PEER_MESSAGE_INVALID) {
-    printf("Unsupported message id: %u\n", (unsigned int)message_id_buffer[0]);
     // Unsupported message id.
     return false;
   }
 
-  printf("message id: %u\n", (unsigned int)message_id_buffer[0]);
 
   size_t payload_length = prefix_length - message_id_length;
   enum MessageId message_id = (enum MessageId)message_id_buffer[0];
 
   if (payload_length > MAX_PAYLOAD_LENGTH ||
       !is_valid_payload_length_for_message(payload_length, message_id)) {
-    printf("Invalid payload length\n");
     return false;
   }
 
@@ -555,7 +545,6 @@ bool receive_peer_wire_message(int file_descriptor,
   unsigned char *payload_buffer = malloc(payload_length);
 
   if (payload_buffer == NULL) {
-    printf("Failed allocating payload\n");
     return false;
   }
 
@@ -565,7 +554,6 @@ bool receive_peer_wire_message(int file_descriptor,
                             payload_length - received_total, 0);
 
     if (received == 0) {
-      printf("Failed reading payload\n");
       free(payload_buffer);
       return false;
     }
@@ -576,7 +564,6 @@ bool receive_peer_wire_message(int file_descriptor,
         continue;
       }
 
-      printf("Failed reading payload\n");
       free(payload_buffer);
       return false;
     }
@@ -648,7 +635,6 @@ bool update_bitfield(peer_connection_t *peer_connection,
                               ((uint32_t)piece_index_buffer[3]);
 
   size_t piece_index = (size_t)piece_index_wire;
-  printf("Peer sent HAVE message for Piece %zu\n", piece_index);
 
   if (piece_index >= piece_count) {
     return false;
