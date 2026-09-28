@@ -521,15 +521,17 @@ static MunitResult test_find_peers_returns_peers(const MunitParameter params[],
 
   munit_assert_true(parsed);
 
-  bencode_segment_t peers = {0};
+  const bencode_object_t *peers;
 
   bool found_peers = find_peers(&parsed_obj, &peers);
   munit_assert_true(found_peers);
 
   const unsigned char expected_bytes[] = "\x7f\x00\x00\x01\x1a\xe1";
-  munit_assert_size(peers.length, ==, sizeof(expected_bytes) - 1);
+  munit_assert_size(peers->value.byte_string.length, ==,
+                    sizeof(expected_bytes) - 1);
+
   munit_assert_memory_equal(sizeof(expected_bytes) - 1, expected_bytes,
-                            peers.data);
+                            peers->value.byte_string.data);
 
   free_bencode_object(&parsed_obj);
 
@@ -580,10 +582,16 @@ test_find_peers_rejects_wrong_value_type(const MunitParameter params[],
   munit_assert_true(parsed);
 
   size_t length_not_changed_value = 42;
-  bencode_segment_t peers = {.data = NULL, .length = length_not_changed_value};
+  bencode_segment_t peers_segment = {.data = NULL,
+                                     .length = length_not_changed_value};
+
+  const bencode_object_t peer_obj = {.value.byte_string = peers_segment};
+  const bencode_object_t *peers = &peer_obj;
+
   bool found_peers = find_peers(&parsed_obj, &peers);
   munit_assert_false(found_peers);
-  munit_assert_size(length_not_changed_value, ==, peers.length);
+  munit_assert_size(length_not_changed_value, ==,
+                    peers->value.byte_string.length);
 
   free_bencode_object(&parsed_obj);
 
@@ -608,10 +616,15 @@ test_find_peers_rejects_missing_key(const MunitParameter params[],
   munit_assert_true(parsed);
 
   size_t length_not_changed_value = 42;
-  bencode_segment_t peers = {.data = NULL, .length = length_not_changed_value};
+  bencode_segment_t peers_segment = {.data = NULL,
+                                     .length = length_not_changed_value};
+
+  const bencode_object_t peer_obj = {.value.byte_string = peers_segment};
+  const bencode_object_t *peers = &peer_obj;
   bool found_peers = find_peers(&parsed_obj, &peers);
   munit_assert_false(found_peers);
-  munit_assert_size(length_not_changed_value, ==, peers.length);
+  munit_assert_size(length_not_changed_value, ==,
+                    peers->value.byte_string.length);
 
   free_bencode_object(&parsed_obj);
 
@@ -681,8 +694,8 @@ static MunitResult test_parse_peer_from_segment_rejects_segment_length_not_6(
 }
 
 static MunitResult
-test_peers_extract_returns_peers(const MunitParameter params[],
-                                 void *user_data) {
+test_peers_extract_compact_returns_peers(const MunitParameter params[],
+                                         void *user_data) {
 
   (void)params;
   (void)user_data;
@@ -699,7 +712,7 @@ test_peers_extract_returns_peers(const MunitParameter params[],
 
   peer_t *peers = {0};
   size_t peer_count = 0;
-  bool peers_extracted = peers_extract(&segment, &peers, &peer_count);
+  bool peers_extracted = peers_extract_compact(&segment, &peers, &peer_count);
 
   munit_assert_true(peers_extracted);
   munit_assert_not_null(peers);
@@ -713,9 +726,8 @@ test_peers_extract_returns_peers(const MunitParameter params[],
   return MUNIT_OK;
 }
 
-static MunitResult
-test_peers_extract_rejects_null_parameters(const MunitParameter params[],
-                                           void *user_data) {
+static MunitResult test_peers_extract_compact_rejects_null_parameters(
+    const MunitParameter params[], void *user_data) {
 
   (void)params;
   (void)user_data;
@@ -727,24 +739,26 @@ test_peers_extract_rejects_null_parameters(const MunitParameter params[],
 
   peer_t *peers = {0};
   size_t peer_count = 0;
-  bool extracted_null_segment = peers_extract(NULL, &peers, &peer_count);
+  bool extracted_null_segment =
+      peers_extract_compact(NULL, &peers, &peer_count);
 
   munit_assert_false(extracted_null_segment);
 
-  bool extracted_null_peers = peers_extract(&segment, NULL, &peer_count);
+  bool extracted_null_peers =
+      peers_extract_compact(&segment, NULL, &peer_count);
 
   munit_assert_false(extracted_null_peers);
 
-  bool extracted_null_peer_count = peers_extract(&segment, &peers, NULL);
+  bool extracted_null_peer_count =
+      peers_extract_compact(&segment, &peers, NULL);
 
   munit_assert_false(extracted_null_peer_count);
 
   return MUNIT_OK;
 }
 
-static MunitResult
-test_peers_extract_rejects_invalid_peers_length(const MunitParameter params[],
-                                                void *user_data) {
+static MunitResult test_peers_extract_compact_rejects_invalid_peers_length(
+    const MunitParameter params[], void *user_data) {
 
   (void)params;
   (void)user_data;
@@ -757,7 +771,7 @@ test_peers_extract_rejects_invalid_peers_length(const MunitParameter params[],
   peer_t *peers = NULL;
   size_t test_unchanged_peer_count = 12;
   size_t peer_count = test_unchanged_peer_count;
-  bool peers_extracted = peers_extract(&segment, &peers, &peer_count);
+  bool peers_extracted = peers_extract_compact(&segment, &peers, &peer_count);
 
   munit_assert_false(peers_extracted);
   munit_assert_null(peers);
@@ -767,8 +781,8 @@ test_peers_extract_rejects_invalid_peers_length(const MunitParameter params[],
 }
 
 static MunitResult
-test_peers_extract_returns_empty_peers(const MunitParameter params[],
-                                       void *user_data) {
+test_peers_extract_compact_returns_empty_peers(const MunitParameter params[],
+                                               void *user_data) {
 
   (void)params;
   (void)user_data;
@@ -777,7 +791,7 @@ test_peers_extract_returns_empty_peers(const MunitParameter params[],
 
   peer_t *peers = {0};
   size_t peer_count = 0;
-  bool peers_extracted = peers_extract(&segment, &peers, &peer_count);
+  bool peers_extracted = peers_extract_compact(&segment, &peers, &peer_count);
 
   munit_assert_true(peers_extracted);
   munit_assert_null(peers);
@@ -855,17 +869,17 @@ static MunitTest tests[] = {
     {"/parse-peer/rejects-segment-length-not-6",
      test_parse_peer_from_segment_rejects_segment_length_not_6, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
-    {"/peer-extract/returns-peers", test_peers_extract_returns_peers, NULL,
-     NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/peer-extract/returns-peers", test_peers_extract_compact_returns_peers,
+     NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {"/peer-extract/rejects-null-parameter",
-     test_peers_extract_rejects_null_parameters, NULL, NULL,
+     test_peers_extract_compact_rejects_null_parameters, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/peer-extract/rejects-invalid-peer-segment-length",
-     test_peers_extract_rejects_invalid_peers_length, NULL, NULL,
+     test_peers_extract_compact_rejects_invalid_peers_length, NULL, NULL,
      MUNIT_TEST_OPTION_NONE, NULL},
     {"/peer-extract/returns-empty-peers-list",
-     test_peers_extract_returns_empty_peers, NULL, NULL, MUNIT_TEST_OPTION_NONE,
-     NULL},
+     test_peers_extract_compact_returns_empty_peers, NULL, NULL,
+     MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
 
 };
