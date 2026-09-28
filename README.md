@@ -1,6 +1,5 @@
 # loco
 
-A small BitTorrent v1 downloader written in C.
 
 ```text
 $ ./loco ~/Downloads/proxmox-ve_9.2-1.iso.torrent
